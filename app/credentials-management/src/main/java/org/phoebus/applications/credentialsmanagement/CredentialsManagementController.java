@@ -51,12 +51,14 @@ import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
 
+import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.awt.Desktop;
 
 /**
  * JavaFX controller for the Credentials Management UI.
@@ -170,8 +172,19 @@ public class CredentialsManagementController {
                         btn.getStyleClass().add("button-style");
                         btn.setOnAction((ActionEvent event) -> {
                             ServiceItem serviceItem = getTableRow().getItem();
-                            if (serviceItem != null && (serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED) ||
-                                    serviceItem.authenticationStatus.get().equals(AuthenticationStatus.CACHED))) {
+                            if (serviceItem != null && serviceItem.isLoginAction()){
+                                String authUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/auth?response_type=code&client_id=infn-portal&scope=open_id%20email&redirect_uri=http%3A%2F%2F127.0.0.1%3A8080%2Fcallback";
+
+                                try {
+                                    if (Desktop.isDesktopSupported()) {
+                                        Desktop.getDesktop().browse(new URI(authUrl));
+                                    } else {
+                                        System.out.println("Desktop is not supported. Open this URL manually: " + authUrl);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            } else if (serviceItem != null) {
                                 logOut(serviceItem);
                             } else {
                                 login(serviceItem, 1);
