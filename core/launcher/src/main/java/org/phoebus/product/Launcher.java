@@ -1,5 +1,6 @@
 package org.phoebus.product;
 
+import com.sun.net.httpserver.HttpServer;
 import javafx.application.Application;
 import org.phoebus.framework.preferences.PropertyPreferenceLoader;
 import org.phoebus.framework.spi.AppDescriptor;
@@ -9,15 +10,12 @@ import org.phoebus.framework.workbench.Locations;
 import org.phoebus.ui.application.ApplicationServer;
 import org.phoebus.ui.application.PhoebusApplication;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -166,9 +164,56 @@ public class Launcher {
             }
         }
 
+        // launch http server
+        startServer();
+
         // Remaining args passed on
         Application.launch(PhoebusApplication.class, args.toArray(new String[args.size()]));
+
+
+
+
     }
+
+    public static void startServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+        server.createContext("/callback", exchange -> {
+            String query = exchange.getRequestURI().getQuery();
+            Map<String, String> params = parseQuery(query);
+
+            String authCode = params.get("code");
+            System.out.println("Authorization Code: " + authCode);
+
+            String response = "Login successful! You can close this window.";
+            exchange.sendResponseHeaders(200, response.getBytes().length);
+            exchange.getResponseBody().write(response.getBytes());
+            exchange.close();
+
+            // Scambia il codice con un access token
+//            String accessToken = KeycloakUtils.getAccessToken(authCode);
+//            System.out.println("Access Token: " + accessToken);
+        });
+
+        server.start();
+        System.out.println("Server started on port 8080");
+    }
+
+    public static Map<String, String> parseQuery(String query) {
+        Map<String, String> queryPairs = new HashMap<>();
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            int idx = pair.indexOf("=");
+            try {
+                String key = URLDecoder.decode(pair.substring(0, idx), "UTF-8");
+                String value = URLDecoder.decode(pair.substring(idx + 1), "UTF-8");
+                queryPairs.put(key, value);
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+        }
+        return queryPairs;
+    }
+
 
     private static void help() {
         System.out.println(" _______           _______  _______  ______            _______ ");
