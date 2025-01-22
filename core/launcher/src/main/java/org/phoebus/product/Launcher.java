@@ -2,6 +2,8 @@ package org.phoebus.product;
 
 import com.sun.net.httpserver.HttpServer;
 import javafx.application.Application;
+import net.minidev.json.JSONObject;
+import net.minidev.json.JSONValue;
 import org.phoebus.framework.preferences.PropertyPreferenceLoader;
 import org.phoebus.framework.spi.AppDescriptor;
 import org.phoebus.framework.spi.AppResourceDescriptor;
@@ -12,9 +14,12 @@ import org.phoebus.ui.application.PhoebusApplication;
 
 import java.io.*;
 import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -189,9 +194,9 @@ public class Launcher {
             exchange.getResponseBody().write(response.getBytes());
             exchange.close();
 
-            // Scambia il codice con un access token
-//            String accessToken = KeycloakUtils.getAccessToken(authCode);
-//            System.out.println("Access Token: " + accessToken);
+//             Scambia il codice con un access token
+            String accessToken = getAccessToken(authCode);
+            System.out.println("Access Token: " + accessToken);
         });
 
         server.start();
@@ -212,6 +217,39 @@ public class Launcher {
             }
         }
         return queryPairs;
+    }
+
+
+    public static String getAccessToken(String authCode) throws IOException {
+        String tokenUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/token";
+        String params = "grant_type=authorization_code"
+                + "&code=" + authCode
+                + "&redirect_uri=http://localhost:8080/callback"
+                + "&client_id=camunda";
+
+        URL url = new URL(tokenUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(params.getBytes(StandardCharsets.UTF_8));
+        }
+
+        if (conn.getResponseCode() == 200) {
+            // Leggi la risposta e estrai il token
+            JSONObject json = (JSONObject) JSONValue.parse(new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            return json.getAsString("access_token");
+
+//            JsonReader jsonReader = Json.createReader(conn.getInputStream());
+//            JsonObject object = jsonReader.readObject();
+//            jsonReader.close();
+//            return object.getString("access_token");
+//            return new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        } else {
+            throw new IOException("Failed to fetch token: " + conn.getResponseCode());
+        }
     }
 
 

@@ -103,7 +103,7 @@ public class CredentialsManagementController {
                             ServiceItem serviceItem = getTableView().getItems().get(getIndex());
                             if(serviceItem.isLoginAction()){
 //                                login(serviceItem);
-                                String authUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/auth?response_type=code&client_id=infn-portal&scope=open_id%20email&redirect_uri=http%3A%2F%2F127.0.0.1%3A8080%2Fcallback";
+                                String authUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/auth?response_type=code&client_id=camunda&scope=open_id%20email&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback";
 
                                 try {
                                     if (Desktop.isDesktopSupported()) {
