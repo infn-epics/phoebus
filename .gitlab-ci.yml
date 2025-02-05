@@ -1,2 +1,85 @@
----
-include: 'https://gitlab.esss.lu.se/ics-software/phoebus-build/raw/master/phoebus.gitlab-ci.yml'
+stages:
+    - build
+    - deploy
+
+build_macos-x86:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn install -DskipTests -Djavafx.platform=mac
+    - mv phoebus-product/target phoebus-macos-x86
+  artifacts:
+    name: "phoebus-macos-x86"
+    paths:
+      - phoebus/phoebus-macos-x86/*.tar.gz
+
+build_macos-arm:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn install -DskipTests -Djavafx.platform=mac-aarch64
+    - mv phoebus-product/target phoebus-macos-arm
+  artifacts:
+    name: "phoebus-macos-arm"
+    paths:
+      - phoebus/phoebus-macos-arm/*.tar.gz
+
+build_linux:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn install -DskipTests -Djavafx.platform=linux
+    - mv phoebus-product/target phoebus-linux
+  artifacts:
+    name: "phoebus-linux"
+    paths:
+      - phoebus/phoebus-linux/*.tar.gz
+    
+build_win:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn install -DskipTests -Djavafx.platform=win
+    - mv phoebus-product/target phoebus-win
+  artifacts:
+    name: "phoebus-win"
+    paths:
+      - phoebus/phoebus-win/*.tar.gz
+
+deploy:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - build_macos-x86
+    - build_macos-arm
+    - build_linux
+    - build_win
+  tags:
+    - lnf
+  script:
+    - name="infn-product-${CI_PIPELINE_ID}.tar.gz"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/$name
+  only:
+    - main
+  
+deploy_nightly:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - build_macos-x86
+    - build_macos-arm
+    - build_linux
+    - build_win
+  tags:
+    - lnf
+  script:
+    - name="infn-product-$CI_COMMIT_REF_NAME-${CI_PIPELINE_ID}.tar.gz"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/nightly/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/nightly/$name
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus/phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/nightly/$name
+
+
