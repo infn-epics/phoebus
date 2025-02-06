@@ -3,6 +3,7 @@ package org.phoebus.applications.logbook;
 import org.phoebus.logbook.LogClient;
 import org.phoebus.logbook.LogFactory;
 import org.phoebus.olog.es.api.OlogHttpClient;
+import org.phoebus.security.tokens.SimpleAuthenticationOauthToken;
 import org.phoebus.security.tokens.SimpleAuthenticationToken;
 
 import java.util.logging.Level;
@@ -52,7 +53,11 @@ public class OlogESLogbook implements LogFactory {
                 SimpleAuthenticationToken token = (SimpleAuthenticationToken) authToken;
                 return OlogHttpClient.builder().username(token.getUsername()).password(token.getPassword())
                         .build();
-            } else {
+            } else if (authToken instanceof SimpleAuthenticationOauthToken){
+                SimpleAuthenticationOauthToken token = (SimpleAuthenticationOauthToken) authToken;
+                return OlogHttpClient.builder().withBearerToken(token.getJwtToken()).build();
+            }
+            else {
                 return getLogClient();
             }
         } catch (Exception e) {

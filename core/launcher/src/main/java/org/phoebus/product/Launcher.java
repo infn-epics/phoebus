@@ -2,8 +2,8 @@ package org.phoebus.product;
 
 import com.sun.net.httpserver.HttpServer;
 import javafx.application.Application;
-import net.minidev.json.JSONObject;
-import net.minidev.json.JSONValue;
+//import net.minidev.json.JSONObject;
+//import net.minidev.json.JSONValue;
 import org.phoebus.framework.preferences.PropertyPreferenceLoader;
 import org.phoebus.framework.spi.AppDescriptor;
 import org.phoebus.framework.spi.AppResourceDescriptor;
@@ -11,6 +11,7 @@ import org.phoebus.framework.workbench.ApplicationService;
 import org.phoebus.framework.workbench.Locations;
 import org.phoebus.ui.application.ApplicationServer;
 import org.phoebus.ui.application.PhoebusApplication;
+import org.phoebus.ui.application.oauth2.Oauth2HttpApplicationServer;
 
 import java.io.*;
 import java.lang.reflect.Method;
@@ -78,6 +79,7 @@ public class Launcher {
         }
 
         boolean showLaunchError = false;
+        Integer oauth2Port = null;
 
         // Can't change default charset, but warn if it's not UTF-8.
         // Config files for displays, data browser etc. explicitly use XMLUtil.ENCODING = "UTF-8".
@@ -193,6 +195,12 @@ public class Launcher {
                     return;
                 } else if (cmd.equals("-launch_error_dialog")) {
                     showLaunchError = true;
+                } else if (cmd.equals("-enable_oauth2_auth")){
+                    if (!iter.hasNext())
+                        throw new Exception("Missing -enable_oauth2_auth port");
+                    iter.remove();
+                    oauth2Port = Integer.parseInt(iter.next());
+                    iter.remove();
                 }
             }
         } catch (Exception ex) {
@@ -207,19 +215,25 @@ public class Launcher {
 
         logger.info("Phoebus (PID " + ProcessHandle.current().pid() + ")");
 
+        ApplicationServer server = null;
+
+
+        if (oauth2Port != null){
+            // check if the server is already running
+//            Oauth2HttpApplicationServer oauth2HttpApplicationServer = Oauth2HttpApplicationServer.create();
+        }
+
+
         // Check for an existing instance
         // If found, pass remaining arguments to it,
         // instead of starting a new application
         if (port > 0) {
-            final ApplicationServer server = ApplicationServer.create(port);
+            server = ApplicationServer.create(port);
             if (!server.isServer()) {
                 server.sendArguments(args);
                 return;
             }
         }
-
-        // launch http server
-        startServer();
 
         // Remaining args passed on
         Application.launch(PhoebusApplication.class, args.toArray(new String[args.size()]));
@@ -229,77 +243,7 @@ public class Launcher {
 
     }
 
-    public static void startServer() throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
-        server.createContext("/callback", exchange -> {
-            String query = exchange.getRequestURI().getQuery();
-            Map<String, String> params = parseQuery(query);
 
-            String authCode = params.get("code");
-            System.out.println("Authorization Code: " + authCode);
-
-            String response = "Login successful! You can close this window.";
-            exchange.sendResponseHeaders(200, response.getBytes().length);
-            exchange.getResponseBody().write(response.getBytes());
-            exchange.close();
-
-//             Scambia il codice con un access token
-            String accessToken = getAccessToken(authCode);
-            System.out.println("Access Token: " + accessToken);
-        });
-
-        server.start();
-        System.out.println("Server started on port 8080");
-    }
-
-    public static Map<String, String> parseQuery(String query) {
-        Map<String, String> queryPairs = new HashMap<>();
-        String[] pairs = query.split("&");
-        for (String pair : pairs) {
-            int idx = pair.indexOf("=");
-            try {
-                String key = URLDecoder.decode(pair.substring(0, idx), "UTF-8");
-                String value = URLDecoder.decode(pair.substring(idx + 1), "UTF-8");
-                queryPairs.put(key, value);
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-        }
-        return queryPairs;
-    }
-
-
-    public static String getAccessToken(String authCode) throws IOException {
-        String tokenUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/token";
-        String params = "grant_type=authorization_code"
-                + "&code=" + authCode
-                + "&redirect_uri=http://localhost:8080/callback"
-                + "&client_id=camunda";
-
-        URL url = new URL(tokenUrl);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(params.getBytes(StandardCharsets.UTF_8));
-        }
-
-        if (conn.getResponseCode() == 200) {
-            // Leggi la risposta e estrai il token
-            JSONObject json = (JSONObject) JSONValue.parse(new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            return json.getAsString("access_token");
-
-//            JsonReader jsonReader = Json.createReader(conn.getInputStream());
-//            JsonObject object = jsonReader.readObject();
-//            jsonReader.close();
-//            return object.getString("access_token");
-//            return new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        } else {
-            throw new IOException("Failed to fetch token: " + conn.getResponseCode());
-        }
-    }
 
 
     private static void help() {

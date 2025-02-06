@@ -7,6 +7,7 @@ import org.phoebus.logbook.LogClient;
 import org.phoebus.logbook.LogFactory;
 import org.phoebus.olog.api.OlogClient;
 import org.phoebus.olog.api.OlogClient.OlogClientBuilder;
+import org.phoebus.security.tokens.SimpleAuthenticationOauthToken;
 import org.phoebus.security.tokens.SimpleAuthenticationToken;
 
 public class OlogLogbook implements LogFactory {
@@ -38,6 +39,10 @@ public class OlogLogbook implements LogFactory {
             if (authToken instanceof SimpleAuthenticationToken) {
                 SimpleAuthenticationToken token = (SimpleAuthenticationToken) authToken;
                 return OlogClient.builder().username(token.getUsername()).password(token.getPassword())
+                        .build();
+            } else if (authToken instanceof SimpleAuthenticationOauthToken) {
+                SimpleAuthenticationOauthToken token = (SimpleAuthenticationOauthToken) authToken;
+                return OlogClient.builder().withBearerToken(token.getJwtToken())
                         .build();
             } else if (oLogClient == null) {
                 oLogClient = OlogClient.builder().build();

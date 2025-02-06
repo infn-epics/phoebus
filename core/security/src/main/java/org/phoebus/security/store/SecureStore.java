@@ -30,8 +30,8 @@ public class SecureStore
     private final Store<String, String> store;
 
     /** Tags */
-    public static final String USERNAME_TAG = "username",
-            PASSWORD_TAG = "password";
+    public static final
+    String USERNAME_TAG = "username", PASSWORD_TAG = "password", JWT_TOKEN_TAG = "jwt_token";
 
     private static final Logger LOGGER = Logger.getLogger(SecureStore.class.getName());
 
@@ -101,6 +101,7 @@ public class SecureStore
     public ScopedAuthenticationToken getScopedAuthenticationToken(AuthenticationScope scope) throws Exception{
         String username;
         String password;
+        String jwtToken;
         if(scope == null || scope.getScope().trim().isEmpty()){
             username = get(USERNAME_TAG);
             password = get(PASSWORD_TAG);

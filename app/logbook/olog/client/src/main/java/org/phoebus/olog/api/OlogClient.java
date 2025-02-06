@@ -93,9 +93,23 @@ public class OlogClient implements LogClient {
         private String username = null;
         private String password = null;
         private final URI uri;
+        private boolean withBearerToken;
+        private String jwtToken;
 
         private OlogClientBuilder() {
             this.uri = URI.create(Preferences.olog_url);
+        }
+
+        /**
+         * Enable of Disable the HTTP authentication on the client connection.
+         *
+         * @param jwtToken
+         * @return {@link OlogClientBuilder}
+         */
+        public OlogClientBuilder withBearerToken(String jwtToken) {
+            this.withBearerToken = true;
+            this.jwtToken = jwtToken;
+            return this;
         }
 
         /**

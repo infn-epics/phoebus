@@ -93,6 +93,7 @@ import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
+import org.phoebus.security.tokens.SimpleAuthenticationOauthToken;
 import org.phoebus.security.tokens.SimpleAuthenticationToken;
 import org.phoebus.ui.Preferences;
 import org.phoebus.ui.autocomplete.AutocompleteMenu;
@@ -305,6 +306,15 @@ public class LogEntryEditorController {
             return;
         }
 
+        // hidden username and password fields if properties oauth2_olog_enable is true+
+
+        if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+            userField.setVisible(false);
+            userFieldLabel.setVisible(false);
+            passwordField.setVisible(false);
+            passwordFieldLabel.setVisible(false);
+        }
+
         templateControls.managedProperty().bind(templateControls.visibleProperty());
         templateControls.visibleProperty().setValue(editMode.equals(EditMode.NEW_LOG_ENTRY));
 
@@ -428,11 +438,17 @@ public class LogEntryEditorController {
                 tagsDropdownButton.setSelected(false);
         });
 
-        inputValid.bind(Bindings.createBooleanBinding(() -> titleProperty.get() != null && !titleProperty.get().isEmpty() &&
-                        usernameProperty.get() != null && !usernameProperty.get().isEmpty() &&
-                        passwordProperty.get() != null && !passwordProperty.get().isEmpty() &&
-                        !selectedLogbooks.isEmpty(),
-                titleProperty, usernameProperty, passwordProperty, selectedLogbooks));
+        if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+            inputValid.bind(Bindings.createBooleanBinding(() -> titleProperty.get() != null && !titleProperty.get().isEmpty() &&
+                            !selectedLogbooks.isEmpty(),
+                    titleProperty, usernameProperty, passwordProperty, selectedLogbooks));
+        } else {
+            inputValid.bind(Bindings.createBooleanBinding(() -> titleProperty.get() != null && !titleProperty.get().isEmpty() &&
+                            usernameProperty.get() != null && !usernameProperty.get().isEmpty() &&
+                            passwordProperty.get() != null && !passwordProperty.get().isEmpty() &&
+                            !selectedLogbooks.isEmpty(),
+                    titleProperty, usernameProperty, passwordProperty, selectedLogbooks));
+        }
 
         tagsPopOver = ListSelectionPopOver.create(
                 (tags, popOver) -> {
@@ -742,8 +758,18 @@ public class LogEntryEditorController {
             }
             ologLog.setProperties(logPropertiesEditorController.getProperties());
 
-            LogClient logClient =
-                    logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));
+
+            LogClient logClient = null;
+
+            if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+                SecureStore secureStore = new SecureStore();
+
+                logClient =
+                        logFactory.getLogClient(new SimpleAuthenticationOauthToken( secureStore.get(SecureStore.JWT_TOKEN_TAG)));
+            } else {
+                logClient =
+                        logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));
+            }
             try {
                 if(editMode.equals(EditMode.NEW_LOG_ENTRY)){
                     if (replyTo == null) {

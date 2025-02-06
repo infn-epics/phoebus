@@ -108,6 +108,13 @@ public class Preferences
     /** Custom stylings file */
     @Preference public static String custom_css_styling;
 
+    @Preference public static String oauth2_auth_url;
+    @Preference public static int oauth2_callback_server_port;
+    @Preference public static String oauth2_realm;
+    @Preference public static String oauth2_client_id;
+    @Preference public static String oauth2_callback;
+
+
     static
     {
     	AnnotatedPreferences.initialize(Preferences.class, "/phoebus_ui_preferences.properties");
