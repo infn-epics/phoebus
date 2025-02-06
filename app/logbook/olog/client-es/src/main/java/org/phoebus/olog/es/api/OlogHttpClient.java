@@ -81,6 +81,7 @@ public class OlogHttpClient implements LogClient {
     public static class Builder {
         private String username = null;
         private String password = null;
+        private String jwtToken = null;
 
         private Builder() {
 
@@ -96,8 +97,16 @@ public class OlogHttpClient implements LogClient {
             return this;
         }
 
+        public Builder withBearerToken(String jwtToken) {
+            this.jwtToken = jwtToken;
+            return this;
+        }
+
         public OlogHttpClient build() {
-            if (this.username == null || this.password == null) {
+            if (this.jwtToken != null) {
+                return new OlogHttpClient(this.jwtToken);
+            }
+            else if (this.username == null || this.password == null) {
                 ScopedAuthenticationToken scopedAuthenticationToken = getCredentialsFromSecureStore();
                 if (scopedAuthenticationToken != null) {
                     this.username = scopedAuthenticationToken.getUsername();
@@ -120,6 +129,23 @@ public class OlogHttpClient implements LogClient {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+
+    private OlogHttpClient(String jwtToken) {
+        httpClient = HttpClient.newBuilder()
+                .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                // HttpClient rejects Duration.ZERO for the connect timeout value.
+                // To support infinite timeout (preference value == 0), use Long.MAX_VALUE
+                .connectTimeout(Duration.ofMillis(Preferences.connectTimeout <= 0 ? Long.MAX_VALUE : Preferences.connectTimeout))
+                .build();
+
+        this.basicAuthenticationHeader = "Bearer " +jwtToken;
+
+
+        ServiceLoader<LogEntryChangeHandler> serviceLoader = ServiceLoader.load(LogEntryChangeHandler.class);
+        serviceLoader.stream().forEach(p -> changeHandlers.add(p.get()));
     }
 
     /**

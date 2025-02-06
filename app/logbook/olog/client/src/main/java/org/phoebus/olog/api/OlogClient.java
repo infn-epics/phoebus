@@ -89,6 +89,8 @@ public class OlogClient implements LogClient {
         private ExecutorService executor = Executors.newSingleThreadExecutor();
 
         private OlogProperties properties = new OlogProperties();
+        private boolean withBearerToken;
+        private String jwtToken;
 
 
         private OlogClientBuilder() {
@@ -140,6 +142,18 @@ public class OlogClient implements LogClient {
          */
         public OlogClientBuilder withHTTPAuthentication(boolean withHTTPAuthentication) {
             this.withHTTPAuthentication = withHTTPAuthentication;
+            return this;
+        }
+
+        /**
+         * Enable of Disable the HTTP authentication on the client connection.
+         *
+         * @param jwtToken
+         * @return {@link OlogClientBuilder}
+         */
+        public OlogClientBuilder withBearerToken(String jwtToken) {
+            this.withBearerToken = true;
+            this.jwtToken = jwtToken;
             return this;
         }
 

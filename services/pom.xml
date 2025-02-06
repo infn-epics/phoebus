@@ -14,5 +14,6 @@
     <module>alarm-logger</module>
     <module>alarm-config-logger</module>
     <module>save-and-restore</module>
+      <module>oauth2-auth</module>
   </modules>
 </project>

@@ -25,6 +25,7 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TableCell;
@@ -39,7 +40,9 @@ import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
+import org.phoebus.ui.Preferences;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
+import org.phoebus.ui.web.WebBrowserApplication;
 
 import java.net.URI;
 import java.util.Comparator;
@@ -102,19 +105,7 @@ public class CredentialsManagementController {
                         btn.setOnAction((ActionEvent event) -> {
                             ServiceItem serviceItem = getTableView().getItems().get(getIndex());
                             if(serviceItem.isLoginAction()){
-//                                login(serviceItem);
-                                String authUrl = "https://idp-test.app.infn.it/auth/realms/aai/protocol/openid-connect/auth?response_type=code&client_id=camunda&scope=open_id%20email&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback";
-
-                                try {
-                                    if (Desktop.isDesktopSupported()) {
-                                        Desktop.getDesktop().browse(new URI(authUrl));
-                                    } else {
-                                        System.out.println("Desktop is not supported. Open this URL manually: " + authUrl);
-                                    }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-
+                                login(serviceItem);
                             }
                             else{
                                 logOut(serviceItem.getAuthenticationScope());
@@ -151,6 +142,27 @@ public class CredentialsManagementController {
         try {
             secureStore.deleteAllScopedAuthenticationTokens();
             updateTable();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to delete all authentication tokens from key store", e);
+            ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
+        }
+    }
+
+
+    @FXML
+    public void loginWithOAuth2() {
+        try {
+
+            String authUrl = Preferences.oauth2_auth_url  + "/realms/"+ Preferences.oauth2_realm+ "/protocol/openid-connect/auth?response_type=code&client_id="+ Preferences.oauth2_client_id+"&scope=open_id%20email&redirect_uri=" + Preferences.oauth2_callback;
+            try {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().browse(new URI(authUrl));
+                } else {
+                    System.out.println("Desktop is not supported. Open this URL manually: " + authUrl);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to delete all authentication tokens from key store", e);
             ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);

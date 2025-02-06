@@ -71,7 +71,7 @@
     <ant target="clean" dir="services/alarm-server"/>
     <ant target="clean" dir="services/alarm-logger"/>
     <ant target="clean" dir="services/archive-engine"/>
-      
+
     <!-- If above list is complete, each project should have deleted its output.
          Just in case, another way to delete all target dirs
          _except_ dependencies
