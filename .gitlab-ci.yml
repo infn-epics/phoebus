@@ -63,7 +63,7 @@ deploy:
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/$name
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/$name
   only:
-    - main
+    - master
   
 deploy_nightly:
   stage: deploy
