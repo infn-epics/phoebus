@@ -2,6 +2,8 @@ package org.phoebus.ui.application.oauth2;
 
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import javafx.application.Platform;
+import javafx.scene.control.Alert;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 import org.phoebus.framework.preferences.AnnotatedPreferences;
@@ -10,17 +12,22 @@ import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.Preferences;
+import org.phoebus.util.http.QueryParamsHelper;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.URL;
-import java.net.URLDecoder;
+import java.net.*;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.interfaces.RSAPublicKey;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
 
 public class Oauth2HttpApplicationServer {
 
@@ -62,8 +69,21 @@ public class Oauth2HttpApplicationServer {
             try {
                 SecureStore secureStore = new SecureStore();
                 secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken);
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Authentication");
+                    alert.setHeaderText("Authentication successful");
+                    alert.showAndWait();
+                });
             }  catch (Exception e) {
-                e.printStackTrace();
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Authentication");
+                    alert.setHeaderText("Authentication Error");
+                    alert.setContentText("Error:" + e.getMessage());
+                    alert.showAndWait();
+                });
+
             }
 
         });
@@ -96,6 +116,7 @@ public class Oauth2HttpApplicationServer {
         String tokenUrl = Preferences.oauth2_auth_url +  "/realms/"+ Preferences.oauth2_realm + "/protocol/openid-connect/token";
         String params = "grant_type=authorization_code"
                 + "&code=" + authCode
+                + "&scope=open_id"
                 + "&redirect_uri=http://localhost:"+ Preferences.oauth2_callback_server_port + "/oauth2Callback"
                 + "&client_id=camunda";
 
@@ -117,6 +138,8 @@ public class Oauth2HttpApplicationServer {
             throw new IOException("Failed to fetch token: " + conn.getResponseCode());
         }
     }
+
+
 
 
 }

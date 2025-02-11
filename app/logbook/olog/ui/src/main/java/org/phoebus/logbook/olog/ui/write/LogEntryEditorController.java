@@ -627,7 +627,7 @@ public class LogEntryEditorController {
                 SecureStore secureStore = new SecureStore();
 
                 logClient =
-                        logFactory.getLogClient(new SimpleAuthenticationOauthToken( secureStore.get(SecureStore.JWT_TOKEN_TAG)));
+                        logFactory.getLogClient(new SimpleAuthenticationOauthToken(secureStore.get(SecureStore.JWT_TOKEN_TAG)));
             } else {
                 logClient =
                         logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));

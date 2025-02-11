@@ -26,6 +26,8 @@ public class PhoebusSecurity
 
     /** Preference setting */
     @Preference public static SecureStoreTarget secure_store_target;
+    @Preference public static String oauth2_auth_url;
+    @Preference public static String oauth2_realm;
 
     static
     {
