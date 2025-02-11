@@ -56,6 +56,8 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static java.lang.Thread.sleep;
+
 /**
  * Logbook client implementation using Java native APIs only. Implemented as singleton.
  */
@@ -286,7 +288,7 @@ public class OlogHttpClient implements LogClient {
                 .uri(URI.create(Preferences.olog_url + OLOG_PREFIX +
                         "/logs/search?" + QueryParamsHelper.mapToQueryParams(searchParams)))
                 .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
-                .header("Content-Type", CONTENT_TYPE_JSON)
+//                .header("Content-Type", CONTENT_TYPE_JSON)
                 .GET()
                 .build();
         try {
@@ -436,8 +438,10 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            return response.body();
+            return HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString()).body();
+
+//            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+//            return response.body();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "failed to obtain service info", e);
             return "";
@@ -464,7 +468,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Logbook>>() {
             });
         } catch (Exception e) {
@@ -481,7 +485,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Tag>>() {
             });
         } catch (Exception e) {

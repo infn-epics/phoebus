@@ -25,5 +25,16 @@
       <artifactId>core-framework</artifactId>
       <version>5.0.3-SNAPSHOT</version>
     </dependency>
+    <dependency>
+      <groupId>com.auth0</groupId>
+      <artifactId>java-jwt</artifactId>
+      <version>4.4.0</version> <!-- Controlla l'ultima versione -->
+    </dependency>
+    <dependency>
+      <groupId>net.minidev</groupId>
+      <artifactId>json-smart</artifactId>
+      <version>2.4.8</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 </project>

@@ -220,7 +220,7 @@ public class Launcher {
 
         if (oauth2Port != null){
             // check if the server is already running
-//            Oauth2HttpApplicationServer oauth2HttpApplicationServer = Oauth2HttpApplicationServer.create();
+            Oauth2HttpApplicationServer oauth2HttpApplicationServer = Oauth2HttpApplicationServer.create();
         }
 
 

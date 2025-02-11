@@ -1,5 +1,6 @@
 package org.phoebus.applications.logbook;
 
+
 import org.phoebus.logbook.LogClient;
 import org.phoebus.logbook.LogFactory;
 import org.phoebus.olog.es.api.OlogHttpClient;
@@ -55,6 +56,9 @@ public class OlogESLogbook implements LogFactory {
                         .build();
             } else if (authToken instanceof SimpleAuthenticationOauthToken){
                 SimpleAuthenticationOauthToken token = (SimpleAuthenticationOauthToken) authToken;
+                if (token.checkJwtToken()) {
+                    throw new IllegalArgumentException("Token has expired");
+                }
                 return OlogHttpClient.builder().withBearerToken(token.getJwtToken()).build();
             }
             else {
@@ -65,4 +69,5 @@ public class OlogESLogbook implements LogFactory {
         }
         return null;
     }
+
 }
