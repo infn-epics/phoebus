@@ -622,17 +622,17 @@ public class LogEntryEditorController {
 
 
             LogClient logClient = null;
-
-            if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
-                SecureStore secureStore = new SecureStore();
-
-                logClient =
-                        logFactory.getLogClient(new SimpleAuthenticationOauthToken(secureStore.get(SecureStore.JWT_TOKEN_TAG)));
-            } else {
-                logClient =
-                        logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));
-            }
             try {
+                if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+                    SecureStore secureStore = new SecureStore();
+
+                    logClient =
+                            logFactory.getLogClient(new SimpleAuthenticationOauthToken(secureStore.get(SecureStore.JWT_TOKEN_TAG)));
+                } else {
+                    logClient =
+                            logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));
+                }
+
                 if(editMode.equals(EditMode.NEW_LOG_ENTRY)){
                     if (replyTo == null) {
                         logEntryResult = Optional.of(logClient.set(ologLog));

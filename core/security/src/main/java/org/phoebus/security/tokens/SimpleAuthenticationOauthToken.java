@@ -32,7 +32,7 @@ public class SimpleAuthenticationOauthToken {
 
     // create a function that check if a jwt token is still valid
     public boolean checkJwtToken() {
-        try {
+
             // check if the jwt token is still valid
             RSAPublicKey publicKey = fetchPublicKey(); // Metodo per recuperare la chiave pubblica
 
@@ -41,11 +41,7 @@ public class SimpleAuthenticationOauthToken {
                     .verify(jwtToken); // Verifica il token
 
             Date expiration = decodedJWT.getExpiresAt();
-            return expiration.before(new Date());
-
-        } catch (Exception e) {
-            return false;
-        }
+            return expiration.after(new Date());
     }
 
     /**
