@@ -15,6 +15,6 @@ public interface LogFactory {
     public LogClient getLogClient();
 
     /** Retrieve a log client with authentication token */
-    public LogClient getLogClient(Object authToken);
+    public LogClient getLogClient(Object authToken) throws LogbookException;
 
 }
