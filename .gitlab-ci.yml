@@ -59,9 +59,14 @@ deploy:
   script:
     - name="infn-product-${CI_PIPELINE_ID}.tar.gz"
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no ln -sf chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/$name chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/latest.tar.gz
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no ln -sf chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/$name chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/latest.tar.gz
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no ln -sf chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/$name chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/latest.tar.gz
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no ln -sf chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/$name chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/latest.tar.gz
+
   only:
     - master
   
