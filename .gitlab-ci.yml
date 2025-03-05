@@ -119,7 +119,7 @@ nightly_build_macos-x86:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
     - mvn install -DskipTests -Djavafx.platform=mac
-    - mv phoebus-product/target phoebus-macos-x86
+    - mv phoebus-product/target ../phoebus-macos-x86
   artifacts:
     name: "phoebus-macos-x86-nightly"
     paths:
@@ -134,7 +134,7 @@ nightly_build_macos-arm:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
     - mvn install -DskipTests -Djavafx.platform=mac-aarch64
-    - mv phoebus-product/target phoebus-macos-arm
+    - mv phoebus-product/target ../phoebus-macos-arm
   artifacts:
     name: "phoebus-macos-arm-nightly"
     paths:
@@ -149,7 +149,7 @@ nightly_build_linux:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
     - mvn install -DskipTests -Djavafx.platform=linux
-    - mv phoebus-product/target phoebus-linux
+    - mv phoebus-product/target ../phoebus-linux
   artifacts:
     name: "phoebus-linux-nightly"
     paths:
@@ -165,7 +165,7 @@ nightly_build_win:
     - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
     - mvn versions:set -DnewVersion=${NEW_VERSION}
     - mvn install -DskipTests -Djavafx.platform=win
-    - mv phoebus-product/target phoebus-win
+    - mv phoebus-product/target ../phoebus-win
   artifacts:
     name: "phoebus-win-nightly"
     paths:
