@@ -2,6 +2,12 @@ stages:
     - build
     - deploy
 
+# Function to retrieve the latest Git tag and set the Maven version
+before_script:
+  - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+  - export NEW_VERSION="4.7.4-LNF-${GIT_TAG}"
+  - mvn versions:set -DnewVersion=${NEW_VERSION}
+
 build_macos-x86:
   stage: build
   image: maven:3.9.6-eclipse-temurin-17

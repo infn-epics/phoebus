@@ -93,7 +93,7 @@
     <activemq.client.version>5.18.4</activemq.client.version>
     <commons.compress.version>1.26.1</commons.compress.version>
     <!--suppress UnresolvedMavenProperty -->
-    <project.build.outputTimestamp>${git.commit.time}</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2025-03-05T17:00:05Z</project.build.outputTimestamp>
   </properties>
   <build>
     <plugins>
