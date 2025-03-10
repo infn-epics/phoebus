@@ -32,18 +32,26 @@
         </dependency>
         <dependency>
             <groupId>org.phoebus</groupId>
+<<<<<<< HEAD
             <artifactId>app-logbook-olog-client-es</artifactId>
             <version>4.7.4-LNF-0.1</version>
         </dependency>
         <dependency>
             <groupId>org.phoebus</groupId>
+=======
+>>>>>>> 176f7a461
             <artifactId>core-security</artifactId>
             <version>4.7.4-LNF-0.1</version>
         </dependency>
         <dependency>
             <groupId>org.phoebus</groupId>
+<<<<<<< HEAD
             <artifactId>core-ui</artifactId>
             <version>4.7.4-LNF-0.1</version>
+=======
+            <artifactId>app-logbook-olog-client-es</artifactId>
+            <version>4.7.4-SNAPSHOT</version>
+>>>>>>> 176f7a461
         </dependency>
         <dependency>
             <groupId>org.jfxtras</groupId>
