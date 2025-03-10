@@ -16,6 +16,7 @@ build_macos-x86:
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac
     - mv phoebus-product/target phoebus-macos-x86
+    - cd phoebus-macos-x86;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
   artifacts:
     name: "phoebus-macos-x86"
     paths:
@@ -31,6 +32,8 @@ build_macos-arm:
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac-aarch64
     - mv phoebus-product/target phoebus-macos-arm
+    - cd phoebus-macos-arm;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+
   artifacts:
     name: "phoebus-macos-arm"
     paths:
@@ -46,6 +49,8 @@ build_linux:
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=linux
     - mv phoebus-product/target phoebus-linux
+    - cd phoebus-linux;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+
   artifacts:
     name: "phoebus-linux"
     paths:
@@ -61,6 +66,7 @@ build_win:
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=win
     - mv phoebus-product/target phoebus-win
+    - cd phoebus-win;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
   artifacts:
     name: "phoebus-win"
     paths:
