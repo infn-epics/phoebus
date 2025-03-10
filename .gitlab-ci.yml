@@ -10,8 +10,8 @@ build_macos-x86:
   image: maven:3.9.6-eclipse-temurin-17
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="4.7.4-LNF-${GIT_TAG}"
-    - mvn versions:set -DnewVersion=${NEW_VERSION}
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac
     - mv phoebus-product/target phoebus-macos-x86
   artifacts:
@@ -24,8 +24,8 @@ build_macos-arm:
   image: maven:3.9.6-eclipse-temurin-17
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="4.7.4-LNF-${GIT_TAG}"
-    - mvn versions:set -DnewVersion=${NEW_VERSION}
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac-aarch64
     - mv phoebus-product/target phoebus-macos-arm
   artifacts:
@@ -38,8 +38,8 @@ build_linux:
   image: maven:3.9.6-eclipse-temurin-17
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="4.7.4-LNF-${GIT_TAG}"
-    - mvn versions:set -DnewVersion=${NEW_VERSION}
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=linux
     - mv phoebus-product/target phoebus-linux
   artifacts:
@@ -52,8 +52,8 @@ build_win:
   image: maven:3.9.6-eclipse-temurin-17
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="4.7.4-LNF-${GIT_TAG}"
-    - mvn versions:set -DnewVersion=${NEW_VERSION}
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=win
     - mv phoebus-product/target phoebus-win
   artifacts:
@@ -99,7 +99,7 @@ deploy_nightly:
     - git clone https://github.com/ControlSystemStudio/phoebus.git
     - cd phoebus
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
     - name="phoebus-product-$NEW_VERSION"
     - cd ..;ls -latr
     - echo "version:$name"
@@ -119,7 +119,8 @@ nightly_build_macos-x86:
     - git clone https://github.com/ControlSystemStudio/phoebus.git
     - cd phoebus
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac
     - mv phoebus-product/target ../phoebus-macos-x86
   artifacts:
@@ -134,7 +135,8 @@ nightly_build_macos-arm:
     - git clone https://github.com/ControlSystemStudio/phoebus.git
     - cd phoebus
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac-aarch64
     - mv phoebus-product/target ../phoebus-macos-arm
   artifacts:
@@ -149,7 +151,8 @@ nightly_build_linux:
     - git clone https://github.com/ControlSystemStudio/phoebus.git
     - cd phoebus
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-    - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=linux
     - mv phoebus-product/target ../phoebus-linux
   artifacts:
@@ -165,7 +168,7 @@ nightly_build_win:
     - cd phoebus
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
-    - mvn versions:set -DnewVersion=${NEW_VERSION}
+    - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=win
     - mv phoebus-product/target ../phoebus-win
   artifacts:

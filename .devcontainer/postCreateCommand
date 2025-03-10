@@ -1,0 +1,2 @@
+echo "opening /var/tmp/ttyV0,raw,echo=0,b9600 tcp:192.168.190.55:4001"
+socat pty,link=/var/tmp/ttyV0,raw,echo=0,b9600 tcp:192.168.190.29:4001 &
