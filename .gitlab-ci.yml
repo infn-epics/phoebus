@@ -5,6 +5,7 @@ stages:
 # Function to retrieve the latest Git tag and set the Maven version
   
 
+
 build_macos-x86:
   stage: build
   image: maven:3.9.6-eclipse-temurin-17
@@ -76,7 +77,10 @@ deploy:
   tags:
     - lnf
   script:
-    - name="infn-product-${CI_PIPELINE_ID}.tar.gz"
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - name="infn-product-${NEW_VERSION}.tar.gz"
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/$name
     - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/$name /var/www/html/binary/epics/phoebus/macos-x86/latest.tar.gz
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/$name
@@ -87,6 +91,30 @@ deploy:
     - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/windows/$name /var/www/html/binary/epics/phoebus/windows/latest.tar.gz
 
   only:
+    - master
+
+deploy_nightly:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - build_macos-x86
+    - build_macos-arm
+    - build_linux
+    - build_win
+  tags:
+    - lnf
+  script:
+    - name="infn-product-${CI_PIPELINE_ID}.tar.gz"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/$name /var/www/html/binary/epics/phoebus/macos-x86/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-silicon/$name /var/www/html/binary/epics/phoebus/macos-silicon/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/linux/$name /var/www/html/binary/epics/phoebus/linux/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/windows/$name /var/www/html/binary/epics/phoebus/windows/nightly/latest.tar.gz
+
+  except:
     - master
   
 deploy_nightly:
