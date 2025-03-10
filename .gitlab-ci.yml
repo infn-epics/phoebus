@@ -11,6 +11,7 @@ build_macos-x86:
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac
     - mv phoebus-product/target phoebus-macos-x86
@@ -25,6 +26,7 @@ build_macos-arm:
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=mac-aarch64
     - mv phoebus-product/target phoebus-macos-arm
@@ -39,6 +41,7 @@ build_linux:
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=linux
     - mv phoebus-product/target phoebus-linux
@@ -53,6 +56,7 @@ build_win:
   script:
     - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
     - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
     - mvn versions:set -DnewVersion=$NEW_VERSION
     - mvn install -DskipTests -Djavafx.platform=win
     - mv phoebus-product/target phoebus-win
