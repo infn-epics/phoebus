@@ -110,7 +110,10 @@ deploy_infn_nightly:
   tags:
     - lnf
   script:
-    - name="infn-product-${CI_COMMIT_REF_NAME}-${CI_PIPELINE_ID}.tar.gz"
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - name="infn-product-${CI_COMMIT_REF_NAME}-${NEW_VERSION}.tar.gz"
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/nightly/$name
     - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/$name /var/www/html/binary/epics/phoebus/macos-x86/nightly/latest.tar.gz
     - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name
