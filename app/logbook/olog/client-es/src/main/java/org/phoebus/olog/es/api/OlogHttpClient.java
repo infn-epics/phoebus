@@ -527,14 +527,14 @@ public class OlogHttpClient implements LogClient {
     public Collection<LogTemplate> getTemplates() {
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(Preferences.olog_url +
-                        "/templates"))
+                .uri(URI.create(Preferences.olog_url + "/templates"))
                 .header("Content-Type", CONTENT_TYPE_JSON)
+                .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
                 .GET()
                 .build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(
                     response.body(), new TypeReference<List<LogTemplate>>() {
                     });
@@ -560,7 +560,9 @@ public class OlogHttpClient implements LogClient {
                     .PUT(HttpRequest.BodyPublishers.ofString(OlogObjectMappers.logEntrySerializer.writeValueAsString(template)))
                     .build();
 
+
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() > 300) {
                 LOGGER.log(Level.SEVERE, "Failed to create template: " + response.body());
                 throw new LogbookException(response.body());
