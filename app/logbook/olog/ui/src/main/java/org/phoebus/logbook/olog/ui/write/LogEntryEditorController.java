@@ -992,7 +992,6 @@ public class LogEntryEditorController {
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Failed to get or parse response from server info request", e);
             }
-
             templatesProperty.setAll(logClient.getTemplates().stream().toList());
 
             Collection<LogEntryLevel> levels = logClient.listLevels();

@@ -438,10 +438,8 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            return HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString()).body();
-
-//            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-//            return response.body();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.body();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "failed to obtain service info", e);
             return "";
@@ -468,7 +466,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Logbook>>() {
             });
         } catch (Exception e) {
@@ -485,7 +483,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Tag>>() {
             });
         } catch (Exception e) {
@@ -565,6 +563,7 @@ public class OlogHttpClient implements LogClient {
                 .uri(URI.create(Preferences.olog_url + OLOG_PREFIX +
                         "/templates"))
                 .header("Content-Type", CONTENT_TYPE_JSON)
+                .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
                 .GET()
                 .build();
 
@@ -595,7 +594,9 @@ public class OlogHttpClient implements LogClient {
                     .PUT(HttpRequest.BodyPublishers.ofString(OlogObjectMappers.logEntrySerializer.writeValueAsString(template)))
                     .build();
 
+
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() > 300) {
                 LOGGER.log(Level.SEVERE, "Failed to create template: " + response.body());
                 throw new LogbookException(response.body());
