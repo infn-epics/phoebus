@@ -1,2 +1,220 @@
----
-include: 'https://gitlab.esss.lu.se/ics-software/phoebus-build/raw/master/phoebus.gitlab-ci.yml'
+stages:
+    - build
+    - deploy
+
+# Function to retrieve the latest Git tag and set the Maven version
+  
+
+
+build_macos-x86:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=mac
+    - mv phoebus-product/target phoebus-macos-x86
+    - cd phoebus-macos-x86;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+  artifacts:
+    name: "phoebus-macos-x86"
+    paths:
+      - phoebus-macos-x86/*.tar.gz
+
+build_macos-arm:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=mac-aarch64
+    - mv phoebus-product/target phoebus-macos-arm
+    - cd phoebus-macos-arm;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+
+  artifacts:
+    name: "phoebus-macos-arm"
+    paths:
+      - phoebus-macos-arm/*.tar.gz
+
+build_linux:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=linux
+    - mv phoebus-product/target phoebus-linux
+    - cd phoebus-linux;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+
+  artifacts:
+    name: "phoebus-linux"
+    paths:
+      - phoebus-linux/*.tar.gz
+    
+build_win:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=win
+    - mv phoebus-product/target phoebus-win
+    - cd phoebus-win;ln -s phoebus-product-$NEW_VERSION.jar phoebus-product.jar;cd ..
+  artifacts:
+    name: "phoebus-win"
+    paths:
+      - phoebus-win/*.tar.gz
+
+deploy:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - build_macos-x86
+    - build_macos-arm
+    - build_linux
+    - build_win
+  tags:
+    - lnf
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - name="infn-product-${NEW_VERSION}.tar.gz"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/$name /var/www/html/binary/epics/phoebus/macos-x86/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-silicon/$name /var/www/html/binary/epics/phoebus/macos-silicon/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/linux/$name /var/www/html/binary/epics/phoebus/linux/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/windows/$name /var/www/html/binary/epics/phoebus/windows/latest.tar.gz
+
+  only:
+    - master
+
+deploy_infn_nightly:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - build_macos-x86
+    - build_macos-arm
+    - build_linux
+    - build_win
+  tags:
+    - lnf
+  script:
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-INFN"
+    - echo "VERSION:$NEW_VERSION"
+    - name="infn-product-${CI_COMMIT_REF_NAME}-${NEW_VERSION}.tar.gz"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/nightly/$name /var/www/html/binary/epics/phoebus/macos-x86/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name /var/www/html/binary/epics/phoebus/macos-silicon/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/linux/nightly/$name /var/www/html/binary/epics/phoebus/linux/nightly/latest.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/windows/nightly/$name /var/www/html/binary/epics/phoebus/windows/nightly/latest.tar.gz
+
+  except:
+    - master
+  
+deploy_nightly_snapshot:
+  stage: deploy
+  image: baltig.infn.it:4567/chaos-lnf-control/chaos_bundle_compilation:2004
+  dependencies:
+    - nightly_build_macos-x86
+    - nightly_build_macos-arm
+    - nightly_build_linux
+    - nightly_build_win
+  tags:
+    - lnf
+  script:
+    - git clone https://github.com/ControlSystemStudio/phoebus.git
+    - cd phoebus
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - name="phoebus-product-$NEW_VERSION.tar.gz"
+    - cd ..;ls -latr
+    - echo "version:$name"
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-x86/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-x86/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-x86/nightly/$name /var/www/html/binary/epics/phoebus/macos-x86/nightly/latest_snapshot.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-macos-arm/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/macos-silicon/nightly/$name /var/www/html/binary/epics/phoebus/macos-silicon/nightly/latest_snapshot.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-linux/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/linux/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/linux/nightly/$name /var/www/html/binary/epics/phoebus/linux/nightly/latest_snapshot.tar.gz
+    - scp -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o HostKeyAlgorithms=ssh-rsa phoebus-win/*.tar.gz chaosweb@opensource.lnf.infn.it:/var/www/html/binary/epics/phoebus/windows/nightly/$name
+    - ssh -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no chaosweb@opensource.lnf.infn.it ln -sf /var/www/html/binary/epics/phoebus/windows/nightly/$name /var/www/html/binary/epics/phoebus/windows/nightly/latest_snapshot.tar.gz
+
+nightly_build_macos-x86:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - git clone https://github.com/ControlSystemStudio/phoebus.git
+    - cd phoebus
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=mac
+    - mv phoebus-product/target ../phoebus-macos-x86
+  artifacts:
+    name: "phoebus-macos-x86-nightly"
+    paths:
+      - phoebus-macos-x86/*.tar.gz
+
+nightly_build_macos-arm:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - git clone https://github.com/ControlSystemStudio/phoebus.git
+    - cd phoebus
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=mac-aarch64
+    - mv phoebus-product/target ../phoebus-macos-arm
+  artifacts:
+    name: "phoebus-macos-arm-nightly"
+    paths:
+      - phoebus-macos-arm/*.tar.gz
+
+nightly_build_linux:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - git clone https://github.com/ControlSystemStudio/phoebus.git
+    - cd phoebus
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="$GIT_TAG-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=linux
+    - mv phoebus-product/target ../phoebus-linux
+  artifacts:
+    name: "phoebus-linux-nightly"
+    paths:
+      - phoebus-linux/*.tar.gz
+
+nightly_build_win:
+  stage: build
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - git clone https://github.com/ControlSystemStudio/phoebus.git
+    - cd phoebus
+    - export GIT_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    - export NEW_VERSION="${GIT_TAG}-SNAPSHOT"
+    - mvn versions:set -DnewVersion=$NEW_VERSION
+    - mvn install -DskipTests -Djavafx.platform=win
+    - mv phoebus-product/target ../phoebus-win
+  artifacts:
+    name: "phoebus-win-nightly"
+    paths:
+      - phoebus-win/*.tar.gz
+
+
