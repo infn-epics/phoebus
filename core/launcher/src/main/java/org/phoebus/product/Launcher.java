@@ -78,7 +78,7 @@ public class Launcher {
         }
         
         boolean showLaunchError = false;
-        Integer oauth2Port = null;
+        boolean enable_oauth2_auth = false;
 
         // Can't change default charset, but warn if it's not UTF-8.
         // Config files for displays, data browser etc. explicitly use XMLUtil.ENCODING = "UTF-8".
@@ -209,10 +209,7 @@ public class Launcher {
                 } else if (cmd.equals("-launch_error_dialog")) {
                     showLaunchError = true;
                 } else if (cmd.equals("-enable_oauth2_auth")){
-                    if (!iter.hasNext())
-                        throw new Exception("Missing -enable_oauth2_auth port");
-                    iter.remove();
-                    oauth2Port = Integer.parseInt(iter.next());
+                    enable_oauth2_auth = true;
                     iter.remove();
                 }
             }
@@ -231,7 +228,7 @@ public class Launcher {
         ApplicationServer server = null;
 
 
-        if (oauth2Port != null){
+        if (enable_oauth2_auth){
             // check if the server is already running
             Oauth2HttpApplicationServer oauth2HttpApplicationServer = Oauth2HttpApplicationServer.create();
         }
