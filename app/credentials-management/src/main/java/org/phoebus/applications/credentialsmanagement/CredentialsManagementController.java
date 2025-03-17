@@ -218,7 +218,8 @@ public class CredentialsManagementController {
     @FXML
     public void loginWithOAuth2() {
         try {
-            String authUrl = Preferences.oauth2_auth_url + "/realms/" + Preferences.oauth2_realm + "/protocol/openid-connect/auth?response_type=code&client_id=" + Preferences.oauth2_client_id + "&scope=open_id%20email&redirect_uri=" + Preferences.oauth2_callback;
+
+            String authUrl = Preferences.oauth2_auth_url  + "/realms/"+ Preferences.oauth2_realm+ "/protocol/openid-connect/auth?response_type=code&client_id="+ Preferences.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ Preferences.oauth2_callback_server_port + Preferences.oauth2_callback;
             try {
                 if (Desktop.isDesktopSupported()) {
                     Desktop.getDesktop().browse(new URI(authUrl));
