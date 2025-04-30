@@ -1,31 +1,19 @@
 package org.phoebus.ui.application.oauth2;
 
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
-import org.phoebus.framework.preferences.AnnotatedPreferences;
-import org.phoebus.framework.preferences.Preference;
 import org.phoebus.security.store.SecureStore;
-import org.phoebus.security.tokens.AuthenticationScope;
-import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.Preferences;
-import org.phoebus.util.http.QueryParamsHelper;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.*;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.interfaces.RSAPublicKey;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 

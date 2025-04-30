@@ -71,6 +71,8 @@ public class CredentialsManagementController {
     private TableColumn<ServiceItem, String> passwordColumn;
     @FXML
     private Button clearAllCredentialsButton;
+    @FXML
+    private Button loginWithOAuth2;
 
     @FXML
     private TableColumn scopeColumn;
@@ -91,6 +93,12 @@ public class CredentialsManagementController {
 
     @FXML
     public void initialize() {
+
+        if (Preferences.enableOauth2) {
+            loginWithOAuth2.setVisible(true);
+        } else {
+            loginWithOAuth2.setVisible(false);
+        }
 
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         clearAllCredentialsButton.disableProperty().bind(listEmpty);
