@@ -1,6 +1,5 @@
 package org.phoebus.product;
 
-import com.sun.net.httpserver.HttpServer;
 import javafx.application.Application;
 //import net.minidev.json.JSONObject;
 //import net.minidev.json.JSONValue;
@@ -13,14 +12,13 @@ import org.phoebus.ui.application.ApplicationServer;
 import org.phoebus.ui.application.PhoebusApplication;
 import org.phoebus.ui.application.oauth2.Oauth2HttpApplicationServer;
 
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+
 import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.URL;
-import java.net.URLDecoder;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -30,15 +28,17 @@ import java.util.stream.Collectors;
 
 @SuppressWarnings("nls")
 public class Launcher {
+    private static final String SETTINGS_OPTION = "-settings";
     private static final String LOGGING_OPTION = "-logging";
     private static final String DEFAULT_LOGGING_FILE="/logging.properties";
     private static final String LOGGING_PROP = "java.util.logging.config.file";
+    private static final String ENABLE_OAUTH2_PREFERENCES_NAME = "enableOauth2";
 
     public static void main(final String[] original_args) throws Exception {
         // First Handle arguments, potentially not even starting the UI
-        // settings and logging will define the phoebus.install value if not exist
+        // settings and logging will define the phoebus.install value if not exist 
         final List<String> args = new ArrayList<>(List.of(original_args));
-
+        
         //Handle logging first
         int indexOf = args.indexOf(LOGGING_OPTION);
         String loggingFilePath = null;
@@ -62,25 +62,26 @@ public class Launcher {
                 errorLoggingOption = "User logging file " + loggingFilePath + " not found";
             }
         }
-
+        
         //If no logging found use the default one
         if(loggingStream == null) {
             loggingFilePath =  Launcher.class.getResource(DEFAULT_LOGGING_FILE).getFile();
             loggingStream = Launcher.class.getResourceAsStream(DEFAULT_LOGGING_FILE);
         }
-
+            
         //Load logging configuration
         LogManager.getLogManager().readConfiguration(loggingStream);
         final Logger logger = Logger.getLogger(Launcher.class.getPackageName());
         logger.log(Level.CONFIG, "Loading logging configuration from " + loggingFilePath);
-
+        
         if(errorLoggingOption != null) {
             logger.log(Level.WARNING, errorLoggingOption);
         }
-
+        
         boolean showLaunchError = false;
         boolean enable_oauth2_auth = false;
-
+        Preferences.userNodeForPackage(org.phoebus.ui.Preferences.class)
+                .putBoolean(ENABLE_OAUTH2_PREFERENCES_NAME, false);
         // Can't change default charset, but warn if it's not UTF-8.
         // Config files for displays, data browser etc. explicitly use XMLUtil.ENCODING = "UTF-8".
         // EPICS database files, strings in Channel Access or PVAccess are expected to use UTF-8.
@@ -95,21 +96,35 @@ public class Launcher {
             logger.severe("Default charset is " + cs.displayName() + " instead of UTF-8.");
             logger.severe("Add    -D\"file.encoding=UTF-8\"    to java command line or JAVA_TOOL_OPTIONS");
         }
-
-        Locations.initialize();
-        // Check for site-specific settings.ini bundled into distribution
-        // before potentially adding command-line settings.
-        final File site_settings = new File(Locations.install(), "settings.ini");
-        if (site_settings.canRead())
-        {
-            logger.info("Loading bundled settings from " + site_settings.getAbsolutePath());
-            final FileInputStream fileInputStream = new FileInputStream(site_settings);
+        
+        //Handle user settings.ini in order to get Locations informations
+        //as user home directory and phoebus folder name
+        //Install path will be set on call of install()
+        //Locations.initialize();
+        indexOf = args.indexOf(SETTINGS_OPTION);
+        File site_settings = null;
+        if(indexOf > 0 && indexOf <= args.size()) {
+            String settingsFilePath = args.get(indexOf + 1);
+            site_settings = new File(settingsFilePath);
+        }
+        
+        if(site_settings == null || !site_settings.exists()) {
+            // Check for site-specific settings.ini bundled into distribution
+            // before potentially adding command-line settings.
+            String settingsError = site_settings != null ? site_settings.getAbsolutePath() + " not found" : "is not defined";
+            logger.log(Level.WARNING, "Settings file " + settingsError);
+            site_settings = new File(Locations.install(), "settings.ini");
+        }
+        
+        if(site_settings != null && site_settings.exists()) {
+            logger.info("Loading settings from " + site_settings.getAbsolutePath());
+            FileInputStream fileInputStream = new FileInputStream(site_settings);
             if (site_settings.getName().endsWith(".xml"))
                 Preferences.importPreferences(fileInputStream);
             else
                 PropertyPreferenceLoader.load(fileInputStream);
         }
-
+    
         // Handle arguments, potentially not even starting the UI
         final Iterator<String> iter = args.iterator();
         int port = -1;
@@ -197,6 +212,8 @@ public class Launcher {
                     showLaunchError = true;
                 } else if (cmd.equals("-enable_oauth2_auth")){
                     enable_oauth2_auth = true;
+                    Preferences.userNodeForPackage(org.phoebus.ui.Preferences.class)
+                            .putBoolean(ENABLE_OAUTH2_PREFERENCES_NAME, true);
                     iter.remove();
                 }
             }

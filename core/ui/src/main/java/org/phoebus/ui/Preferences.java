@@ -108,6 +108,7 @@ public class Preferences
     /** Custom stylings file */
     @Preference public static String custom_css_styling;
 
+    @Preference public static boolean enableOauth2;
     @Preference public static String oauth2_auth_url;
     @Preference public static int oauth2_callback_server_port;
     @Preference public static String oauth2_realm;
