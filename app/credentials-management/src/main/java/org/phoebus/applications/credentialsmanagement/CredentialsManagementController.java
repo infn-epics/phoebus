@@ -26,21 +26,18 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import org.phoebus.framework.jobs.JobManager;
+import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.Preferences;
+import org.phoebus.ui.dialog.DialogHelper;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
 import org.phoebus.ui.web.WebBrowserApplication;
 
@@ -94,7 +91,7 @@ public class CredentialsManagementController {
     @FXML
     public void initialize() {
 
-        if (Preferences.enableOauth2) {
+        if (PhoebusSecurity.enable_oauth2) {
             loginWithOAuth2.setVisible(true);
         } else {
             loginWithOAuth2.setVisible(false);
@@ -161,18 +158,24 @@ public class CredentialsManagementController {
     public void loginWithOAuth2() {
         try {
 
-            String authUrl = Preferences.oauth2_auth_url  + "/realms/"+ Preferences.oauth2_realm+ "/protocol/openid-connect/auth?response_type=code&client_id="+ Preferences.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ Preferences.oauth2_callback_server_port + Preferences.oauth2_callback;
+            String authUrl = PhoebusSecurity.oauth2_auth_url  + "/realms/"+ PhoebusSecurity.oauth2_realm+ "/protocol/openid-connect/auth?response_type=code&client_id="+ PhoebusSecurity.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
             try {
                 if (Desktop.isDesktopSupported()) {
                     Desktop.getDesktop().browse(new URI(authUrl));
                 } else {
-                    System.out.println("Desktop is not supported. Open this URL manually: " + authUrl);
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle("Desktop is not supported");
+                        alert.setHeaderText("Open this URL manually: " + authUrl);
+                        alert.showAndWait();
+                    });
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.log(Level.WARNING, "Unable to open browser page", e);
+                ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to delete all authentication tokens from key store", e);
+            LOGGER.log(Level.WARNING, "Unable to open browser page", e);
             ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
         }
     }

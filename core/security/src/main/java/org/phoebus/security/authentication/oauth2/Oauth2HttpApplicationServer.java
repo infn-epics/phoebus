@@ -1,12 +1,10 @@
-package org.phoebus.ui.application.oauth2;
+package org.phoebus.security.authentication.oauth2;
 
 import com.sun.net.httpserver.HttpServer;
-import javafx.application.Platform;
-import javafx.scene.control.Alert;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
+import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.store.SecureStore;
-import org.phoebus.ui.Preferences;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -38,8 +36,8 @@ public class Oauth2HttpApplicationServer {
 
     private Oauth2HttpApplicationServer() throws Exception
     {
-        server = HttpServer.create(new InetSocketAddress(Preferences.oauth2_callback_server_port), 0);
-        server.createContext("/oauth2Callback", exchange -> {
+        server = HttpServer.create(new InetSocketAddress(PhoebusSecurity.oauth2_callback_server_port), 0);
+        server.createContext(PhoebusSecurity.oauth2_callback, exchange -> {
             String query = exchange.getRequestURI().getQuery();
             Map<String, String> params = parseQuery(query);
 
@@ -57,20 +55,30 @@ public class Oauth2HttpApplicationServer {
             try {
                 SecureStore secureStore = new SecureStore();
                 secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken);
-                Platform.runLater(() -> {
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Authentication");
-                    alert.setHeaderText("Authentication successful");
-                    alert.showAndWait();
-                });
+
+//                Platform.runLater(() -> {
+//                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+//                    alert.setTitle("Authentication");
+//                    alert.setHeaderText("Authentication successful");
+//                    alert.showAndWait();
+//                });
             }  catch (Exception e) {
-                Platform.runLater(() -> {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Authentication");
-                    alert.setHeaderText("Authentication Error");
-                    alert.setContentText("Error:" + e.getMessage());
-                    alert.showAndWait();
-                });
+
+                // Handle the exception
+                System.err.println("Error storing access token: " + e.getMessage());
+                e.printStackTrace();
+
+                // Show an error dialog
+//                ExceptionDetailsErrorDialog.openError(parent, "Login Failure", "Failed to login to service", exception);
+//
+//
+//                Platform.runLater(() -> {
+//                    Alert alert = new Alert(Alert.AlertType.ERROR);
+//                    alert.setTitle("Authentication");
+//                    alert.setHeaderText("Authentication Error");
+//                    alert.setContentText("Error:" + e.getMessage());
+//                    alert.showAndWait();
+//                });
 
             }
 
@@ -78,7 +86,7 @@ public class Oauth2HttpApplicationServer {
         server.setExecutor(null); // Use the default executor
         server.start();
 
-        System.out.println("Server is running on port " + Preferences.oauth2_callback_server_port);
+        System.out.println("Server is running on port " + PhoebusSecurity.oauth2_callback_server_port);
     }
 
 
@@ -101,11 +109,11 @@ public class Oauth2HttpApplicationServer {
 
 
     public String getAccessToken(String authCode) throws IOException {
-        String tokenUrl = Preferences.oauth2_auth_url +  "/realms/"+ Preferences.oauth2_realm + "/protocol/openid-connect/token";
+        String tokenUrl = PhoebusSecurity.oauth2_auth_url +  "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/token";
         String params = "grant_type=authorization_code"
                 + "&code=" + authCode
                 + "&scope=open_id"
-                + "&redirect_uri=http://localhost:"+ Preferences.oauth2_callback_server_port + "/oauth2Callback"
+                + "&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + "/oauth2Callback"
                 + "&client_id=camunda";
 
         URL url = new URL(tokenUrl);

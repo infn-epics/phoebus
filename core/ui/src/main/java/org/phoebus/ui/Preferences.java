@@ -94,12 +94,6 @@ public class Preferences
     @Preference public static String cache_hint_for_picture_and_symbol_widgets;
     @Preference public static boolean save_credentials;
 
-    @Preference public static boolean enableOauth2;
-    @Preference public static String oauth2_auth_url;
-    @Preference public static int oauth2_callback_server_port;
-    @Preference public static String oauth2_realm;
-    @Preference public static String oauth2_client_id;
-    @Preference public static String oauth2_callback;
 
 
     static

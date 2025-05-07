@@ -1,4 +1,4 @@
-package org.phoebus.ui.application.oauth2;
+package org.phoebus.security.authentication.oauth2;
 
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.tokens.AuthenticationScope;
