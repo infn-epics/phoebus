@@ -10,7 +10,7 @@ import org.phoebus.framework.workbench.ApplicationService;
 import org.phoebus.framework.workbench.Locations;
 import org.phoebus.ui.application.ApplicationServer;
 import org.phoebus.ui.application.PhoebusApplication;
-import org.phoebus.ui.application.oauth2.Oauth2HttpApplicationServer;
+import org.phoebus.security.authentication.oauth2.Oauth2HttpApplicationServer;
 
 import java.io.File;
 import java.io.InputStream;
@@ -32,7 +32,7 @@ public class Launcher {
     private static final String LOGGING_OPTION = "-logging";
     private static final String DEFAULT_LOGGING_FILE="/logging.properties";
     private static final String LOGGING_PROP = "java.util.logging.config.file";
-    private static final String ENABLE_OAUTH2_PREFERENCES_NAME = "enableOauth2";
+
 
     public static void main(final String[] original_args) throws Exception {
         // First Handle arguments, potentially not even starting the UI
@@ -79,9 +79,7 @@ public class Launcher {
         }
         
         boolean showLaunchError = false;
-        boolean enable_oauth2_auth = false;
-        Preferences.userNodeForPackage(org.phoebus.ui.Preferences.class)
-                .putBoolean(ENABLE_OAUTH2_PREFERENCES_NAME, false);
+
         // Can't change default charset, but warn if it's not UTF-8.
         // Config files for displays, data browser etc. explicitly use XMLUtil.ENCODING = "UTF-8".
         // EPICS database files, strings in Channel Access or PVAccess are expected to use UTF-8.
@@ -210,11 +208,6 @@ public class Launcher {
                     return;
                 } else if (cmd.equals("-launch_error_dialog")) {
                     showLaunchError = true;
-                } else if (cmd.equals("-enable_oauth2_auth")){
-                    enable_oauth2_auth = true;
-                    Preferences.userNodeForPackage(org.phoebus.ui.Preferences.class)
-                            .putBoolean(ENABLE_OAUTH2_PREFERENCES_NAME, true);
-                    iter.remove();
                 }
             }
         } catch (Exception ex) {
@@ -230,12 +223,6 @@ public class Launcher {
         logger.info("Phoebus (PID " + ProcessHandle.current().pid() + ")");
 
         ApplicationServer server = null;
-
-
-        if (enable_oauth2_auth){
-            // check if the server is already running
-            Oauth2HttpApplicationServer oauth2HttpApplicationServer = Oauth2HttpApplicationServer.create();
-        }
 
 
         // Check for an existing instance

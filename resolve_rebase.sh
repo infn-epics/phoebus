@@ -19,18 +19,21 @@ for i in $(seq 1 100); do
         fi
     fi
 
-    non_pom=$(echo "$conflicted" | grep -v 'pom\.xml$' | grep -v '\.classpath$' | grep -v '\.gitlab-ci\.yml$')
-    if [ -n "$non_pom" ]; then
-        echo "NEED_MANUAL_RESOLUTION:"
-        echo "$non_pom"
-        commit_msg=$(cat .git/rebase-merge/message 2>/dev/null | head -1)
-        echo "COMMIT: $commit_msg"
-        exit 1
+    pom_files=$(echo "$conflicted" | grep 'pom\.xml$' || true)
+    other_files=$(echo "$conflicted" | grep -v 'pom\.xml$' || true)
+
+    if [ -n "$pom_files" ]; then
+        pom_count=$(echo "$pom_files" | wc -l | tr -d ' ')
+        echo "[$i] Resolving $pom_count pom.xml with --ours (master)..."
+        echo "$pom_files" | xargs git checkout --ours
     fi
 
-    count=$(echo "$conflicted" | wc -l | tr -d ' ')
-    echo "[$i] Resolving $count conflicts with master..."
-    echo "$conflicted" | xargs git checkout --ours
+    if [ -n "$other_files" ]; then
+        other_count=$(echo "$other_files" | wc -l | tr -d ' ')
+        echo "[$i] Resolving $other_count code files with --theirs (development)..."
+        echo "$other_files" | xargs git checkout --theirs
+    fi
+
     git add -A
     result=$(GIT_EDITOR=":" git rebase --continue 2>&1)
 
@@ -38,6 +41,9 @@ for i in $(seq 1 100); do
         echo "REBASE_COMPLETE"
         exit 0
     fi
+
+    commit_msg=$(cat .git/rebase-merge/message 2>/dev/null | head -1)
+    echo "  Next: $commit_msg"
 done
 
 echo "LOOP_LIMIT_REACHED"

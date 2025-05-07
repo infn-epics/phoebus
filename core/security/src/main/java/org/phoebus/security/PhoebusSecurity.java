@@ -28,6 +28,12 @@ public class PhoebusSecurity
     @Preference public static SecureStoreTarget secure_store_target;
     @Preference public static String oauth2_auth_url;
     @Preference public static String oauth2_realm;
+    @Preference public static boolean enable_oauth2;
+
+
+    @Preference public static int oauth2_callback_server_port;
+    @Preference public static String oauth2_client_id;
+    @Preference public static String oauth2_callback;
 
     static
     {

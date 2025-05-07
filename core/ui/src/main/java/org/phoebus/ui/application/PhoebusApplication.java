@@ -74,6 +74,7 @@ import org.phoebus.framework.spi.AppResourceDescriptor;
 import org.phoebus.framework.util.ResourceParser;
 import org.phoebus.framework.workbench.ApplicationService;
 import org.phoebus.framework.workbench.Locations;
+import org.phoebus.security.authentication.AuthenticationService;
 import org.phoebus.security.authorization.AuthorizationService;
 import org.phoebus.ui.Preferences;
 import org.phoebus.ui.application.MenuEntryService.MenuTreeNode;
@@ -459,6 +460,9 @@ public class PhoebusApplication extends Application {
 
         // Trigger initialization of authentication service
         AuthorizationService.init();
+
+        // Initialize authentication service
+        AuthenticationService.init();
 
         // Back to UI thread
         Platform.runLater(() ->
