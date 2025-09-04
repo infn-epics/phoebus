@@ -49,6 +49,8 @@ public class LogbookUIPreferences {
     public static String search_help;
     @Preference
     public static boolean oauth2_auth_olog_enabled;
+    public static boolean show_log_watermark;
+
 
 
     static {

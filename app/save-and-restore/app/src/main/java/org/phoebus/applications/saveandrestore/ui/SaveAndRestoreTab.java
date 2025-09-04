@@ -24,6 +24,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.image.ImageView;
+import org.phoebus.applications.saveandrestore.model.websocket.SaveAndRestoreWebSocketMessage;
 import org.phoebus.applications.saveandrestore.ui.snapshot.SnapshotTab;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.javafx.ImageCache;
@@ -34,7 +35,7 @@ import java.util.List;
 /**
  * Base class for save-n-restore {@link Tab}s containing common functionality.
  */
-public abstract class SaveAndRestoreTab extends Tab implements NodeChangedListener {
+public abstract class SaveAndRestoreTab extends Tab implements WebSocketMessageHandler {
 
     protected SaveAndRestoreBaseController controller;
 
@@ -60,6 +61,14 @@ public abstract class SaveAndRestoreTab extends Tab implements NodeChangedListen
 
         contextMenu.getItems().addAll(closeAll, closeOthers);
         setContextMenu(contextMenu);
+
+        setOnCloseRequest(event -> {
+            if (doCloseCheck()) {
+                handleTabClosed();
+            } else {
+                event.consume();
+            }
+        });
     }
 
     /**
@@ -69,5 +78,25 @@ public abstract class SaveAndRestoreTab extends Tab implements NodeChangedListen
      */
     public void secureStoreChanged(List<ScopedAuthenticationToken> validTokens) {
         controller.secureStoreChanged(validTokens);
+    }
+
+    @Override
+    public void handleWebSocketMessage(SaveAndRestoreWebSocketMessage<?> saveAndRestoreWebSocketMessage) {
+
+    }
+
+    /**
+     * Performs suitable cleanup, e.g. close web socket and PVs (where applicable).
+     */
+    public void handleTabClosed() {
+        controller.handleTabClosed();
+    }
+
+    /**
+     * Checks if the tab may be closed, e.g. if data managed in the UI has been saved.
+     * @return <code>false</code> if tab contains unsaved data, otherwise <code>true</code>
+     */
+    public boolean doCloseCheck() {
+        return controller.doCloseCheck();
     }
 }

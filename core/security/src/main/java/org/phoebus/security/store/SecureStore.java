@@ -196,8 +196,8 @@ public class SecureStore
                 continue;
             }
             String[] tokens = alias.split("\\.");
-            String username;
-            String password;
+            String username = null;
+            String password = null;
             AuthenticationScope scope = null;
             // Non-scoped alias?
             if(tokens.length == 1 && USERNAME_TAG.equals(tokens[0])){
@@ -209,8 +209,13 @@ public class SecureStore
             }
             else{
                 scope = AuthenticationScope.fromString(tokens[0]);
-                username = get(scope.getName() + "." + USERNAME_TAG);
-                password = get(scope.getName() + "." + PASSWORD_TAG);
+                if (scope != null) {
+                    username = get(scope.getName() + "." + USERNAME_TAG);
+                    password = get(scope.getName() + "." + PASSWORD_TAG);
+                }
+                else {
+                    LOGGER.log(Level.WARNING, "Failed to retrieve scope for entry: " + tokens[0]);
+                }
             }
             // Add only if password was found.
             if(password != null){
