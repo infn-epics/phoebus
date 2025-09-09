@@ -1,6 +1,8 @@
 package org.phoebus.security.authentication.oauth2;
 
 import com.sun.net.httpserver.HttpServer;
+import javafx.application.Platform;
+import javafx.scene.control.Alert;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 import org.phoebus.security.PhoebusSecurity;
@@ -56,12 +58,12 @@ public class Oauth2HttpApplicationServer {
                 SecureStore secureStore = new SecureStore();
                 secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken);
 
-//                Platform.runLater(() -> {
-//                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-//                    alert.setTitle("Authentication");
-//                    alert.setHeaderText("Authentication successful");
-//                    alert.showAndWait();
-//                });
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Authentication");
+                    alert.setHeaderText("Authentication successful");
+                    alert.showAndWait();
+                });
             }  catch (Exception e) {
 
                 // Handle the exception
