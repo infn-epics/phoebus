@@ -136,8 +136,4 @@ public class Oauth2HttpApplicationServer {
             throw new IOException("Failed to fetch token: " + conn.getResponseCode());
         }
     }
-
-
-
-
 }
