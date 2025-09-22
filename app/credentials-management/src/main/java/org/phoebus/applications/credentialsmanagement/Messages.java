@@ -30,6 +30,8 @@ public class Messages {
     public static String SecureStoreErrorTitle;
     public static String SecureStoreErrorBody;
     public static String Title;
+    public static String LoginWithOAuth2;
+    public static String LogoutOAuth2;
 
     static
     {

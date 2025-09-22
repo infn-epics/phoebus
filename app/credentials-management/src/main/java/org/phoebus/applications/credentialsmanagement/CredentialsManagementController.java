@@ -19,6 +19,7 @@
 package org.phoebus.applications.credentialsmanagement;
 
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -28,6 +29,9 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.web.WebEngine;
+import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import org.phoebus.framework.jobs.JobManager;
@@ -36,19 +40,14 @@ import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
-import org.phoebus.ui.Preferences;
-import org.phoebus.ui.dialog.DialogHelper;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
-import org.phoebus.ui.web.WebBrowserApplication;
 
-import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.awt.Desktop;
 
 /**
  * JavaFX controller for the Credentials Management UI.
@@ -83,6 +82,8 @@ public class CredentialsManagementController {
 
     private Stage stage;
 
+    private final SimpleBooleanProperty oauthLoggedIn = new SimpleBooleanProperty(false);
+
     public CredentialsManagementController(List<ServiceAuthenticationProvider> authenticationProviders, SecureStore secureStore) {
         this.authenticationProviders = authenticationProviders;
         this.secureStore = secureStore;
@@ -93,6 +94,11 @@ public class CredentialsManagementController {
 
         if (PhoebusSecurity.enable_oauth2) {
             loginWithOAuth2.setVisible(true);
+            loginWithOAuth2.textProperty().bind(
+                    Bindings.when(oauthLoggedIn)
+                            .then(Messages.LogoutOAuth2)      // testo quando autenticato
+                            .otherwise(Messages.LoginWithOAuth2)  // testo quando non autenticato
+            );
         } else {
             loginWithOAuth2.setVisible(false);
         }
@@ -158,18 +164,30 @@ public class CredentialsManagementController {
     public void loginWithOAuth2() {
         try {
 
-            String authUrl = PhoebusSecurity.oauth2_auth_url  + "/realms/"+ PhoebusSecurity.oauth2_realm+ "/protocol/openid-connect/auth?response_type=code&client_id="+ PhoebusSecurity.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+            String authUrl = PhoebusSecurity.oauth2_auth_url  + "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/auth?response_type=code&client_id="+ PhoebusSecurity.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
             try {
-                if (Desktop.isDesktopSupported()) {
-                    Desktop.getDesktop().browse(new URI(authUrl));
-                } else {
-                    Platform.runLater(() -> {
-                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                        alert.setTitle("Desktop is not supported");
-                        alert.setHeaderText("Open this URL manually: " + authUrl);
-                        alert.showAndWait();
-                    });
-                }
+
+                String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+
+                // Usa il tuo BrowserWithToolbar
+                OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn);
+
+
+
+//                if (Desktop.isDesktopSupported()) {
+//
+//
+//
+//
+//                    Desktop.getDesktop().browse(new URI(authUrl));
+//                } else {
+//                    Platform.runLater(() -> {
+//                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+//                        alert.setTitle("Desktop is not supported");
+//                        alert.setHeaderText("Open this URL manually: " + authUrl);
+//                        alert.showAndWait();
+//                    });
+//                }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Unable to open browser page", e);
                 ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
@@ -359,4 +377,48 @@ public class CredentialsManagementController {
     public void setStage(Stage stage){
         this.stage = stage;
     }
+
+    public class OAuth2Browser {
+
+        public static void openInNewStage(String authUrl, String redirectUri, SimpleBooleanProperty oauthLoggedIn) {
+            WebView webView = new WebView();
+            WebEngine webEngine = webView.getEngine();
+
+            Stage stage = new Stage();
+            BorderPane root = new BorderPane(webView);
+            stage.setTitle("OAuth2 Login");
+            stage.setScene(new Scene(root, 900, 600));
+
+            // Listener su cambio URL
+            webEngine.locationProperty().addListener((obs, oldLocation, newLocation) -> {
+                if (newLocation.startsWith(redirectUri)) {
+                    // Qui il login è completato!
+                    // Puoi leggere il code dalla query string se vuoi
+                    // String code = new URI(newLocation).getQuery();
+
+                    Platform.runLater(() -> {
+                        oauthLoggedIn.set(true);
+                        stage.close();
+                    }); // chiudi la finestra
+
+                }
+            });
+
+            // Carica URL
+            try {
+                if (authUrl == null || authUrl.isBlank()) authUrl = "about:blank";
+                webEngine.load(authUrl);
+            } catch (Exception e) {
+                String errorPage = "<h2 style='color:red;'>Errore caricamento pagina</h2>" +
+                        "<p>URL: " + authUrl + "</p>" +
+                        "<p>" + e.getMessage() + "</p>";
+                webEngine.loadContent(errorPage);
+            }
+
+            stage.show();
+        }
+    }
 }
+
+
+
