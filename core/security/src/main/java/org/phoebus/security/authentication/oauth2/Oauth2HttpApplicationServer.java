@@ -7,6 +7,7 @@ import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.store.SecureStore;
+import org.phoebus.security.tokens.SimpleAuthenticationOauthToken;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -52,11 +53,13 @@ public class Oauth2HttpApplicationServer {
             exchange.close();
 
             // Scambia il codice con un access token
-            String accessToken = getAccessToken(authCode);
+            JSONObject accessToken = getToken(authCode);
             // Inserisci il token nella sessione
             try {
                 SecureStore secureStore = new SecureStore();
-                secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken);
+                secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken.getAsString("access_token"));
+                secureStore.set(SecureStore.JWT_ID_TOKEN, accessToken.getAsString("id_token"));
+//                secureStore.setScopedAuthentication(new SimpleAuthenticationOauthToken(accessToken.getAsString("access_token")));
 
                 Platform.runLater(() -> {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -110,11 +113,11 @@ public class Oauth2HttpApplicationServer {
     }
 
 
-    public String getAccessToken(String authCode) throws IOException {
+    public JSONObject getToken(String authCode) throws IOException {
         String tokenUrl = PhoebusSecurity.oauth2_auth_url +  "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/token";
         String params = "grant_type=authorization_code"
                 + "&code=" + authCode
-                + "&scope=open_id"
+                + "&scope=openid"
                 + "&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + "/oauth2Callback"
                 + "&client_id=camunda";
 
@@ -131,7 +134,7 @@ public class Oauth2HttpApplicationServer {
         if (conn.getResponseCode() == 200) {
             // Leggi la risposta e estrai il token
             JSONObject json = (JSONObject) JSONValue.parse(new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            return json.getAsString("access_token");
+            return json;
         } else {
             throw new IOException("Failed to fetch token: " + conn.getResponseCode());
         }

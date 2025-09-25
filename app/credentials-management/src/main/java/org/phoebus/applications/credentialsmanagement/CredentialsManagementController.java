@@ -42,6 +42,8 @@ import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -103,6 +105,15 @@ public class CredentialsManagementController {
             loginWithOAuth2.setVisible(false);
         }
 
+        try {
+            if (secureStore != null && secureStore.get(SecureStore.JWT_TOKEN_TAG) != null) {
+                oauthLoggedIn.set(true);
+            }
+
+        } catch (Exception ex) {
+            oauthLoggedIn.set(false);
+        }
+
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         clearAllCredentialsButton.disableProperty().bind(listEmpty);
         Callback<TableColumn<ServiceItem, Void>, TableCell<ServiceItem, Void>> actionColumnCellFactory = new Callback<>() {
@@ -152,6 +163,7 @@ public class CredentialsManagementController {
     public void logOutFromAll() {
         try {
             secureStore.deleteAllScopedAuthenticationTokens();
+            oauthLoggedIn.set(false);
             updateTable();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to delete all authentication tokens from key store", e);
@@ -162,15 +174,33 @@ public class CredentialsManagementController {
 
     @FXML
     public void loginWithOAuth2() {
+
         try {
+            if (oauthLoggedIn.get()) {
+                // Must logout from OAUTH2
+                String logoutUrl = PhoebusSecurity.oauth2_auth_url + "/realms/" + PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/logout"
+                        + "?id_token_hint=" + secureStore.get(SecureStore.JWT_ID_TOKEN)
+                        + "&post_logout_redirect_uri=";
 
-            String authUrl = PhoebusSecurity.oauth2_auth_url  + "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/auth?response_type=code&client_id="+ PhoebusSecurity.oauth2_client_id+"&scope=open_id%20email&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
-            try {
+                URL url = new URL(logoutUrl);
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("GET");
+                con.setDoOutput(true);
 
-                String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+                int responseCode = con.getResponseCode();
+                System.out.println("Logout response code: " + responseCode);
+                con.disconnect();
+                oauthLoggedIn.set(false);
+                secureStore.delete(SecureStore.JWT_ID_TOKEN);
+                secureStore.delete(SecureStore.JWT_TOKEN_TAG);
+            } else {
+                String authUrl = PhoebusSecurity.oauth2_auth_url  + "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/auth?response_type=code&client_id="+ PhoebusSecurity.oauth2_client_id+"&scope=openid%20email&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+                try {
 
-                // Usa il tuo BrowserWithToolbar
-                OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn);
+                    String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+
+                    // Usa il tuo BrowserWithToolbar
+                    OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn, stage);
 
 
 
@@ -188,10 +218,14 @@ public class CredentialsManagementController {
 //                        alert.showAndWait();
 //                    });
 //                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Unable to open browser page", e);
-                ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Unable to open browser page", e);
+                    ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
+                }
             }
+
+
+
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Unable to open browser page", e);
             ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
@@ -380,7 +414,7 @@ public class CredentialsManagementController {
 
     public class OAuth2Browser {
 
-        public static void openInNewStage(String authUrl, String redirectUri, SimpleBooleanProperty oauthLoggedIn) {
+        public static void openInNewStage(String authUrl, String redirectUri, SimpleBooleanProperty oauthLoggedIn, Stage parentStage) {
             WebView webView = new WebView();
             WebEngine webEngine = webView.getEngine();
 
@@ -399,6 +433,7 @@ public class CredentialsManagementController {
                     Platform.runLater(() -> {
                         oauthLoggedIn.set(true);
                         stage.close();
+                        parentStage.close();
                     }); // chiudi la finestra
 
                 }

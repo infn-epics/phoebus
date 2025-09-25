@@ -27,6 +27,7 @@ import org.phoebus.security.tokens.ScopedAuthenticationToken;
 public class SecureStore
 {
 
+    public static final String JWT_ID_TOKEN = "id_token";
     private final Store<String, String> store;
 
     /** Tags */
