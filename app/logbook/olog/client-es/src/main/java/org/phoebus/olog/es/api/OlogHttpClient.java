@@ -328,14 +328,26 @@ public class OlogHttpClient implements LogClient {
     public LogEntry update(LogEntry logEntry) {
 
         try {
+            String boundary = "----Boundary" + System.currentTimeMillis();
+
+            String logEntryJson = OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntry);
+
+            String multipartBody =
+                    "--" + boundary + "\r\n" +
+                            "Content-Disposition: form-data; name=\"logEntry\"; filename=\"logEntry.json\"\r\n" +
+                            "Content-Type: application/json\r\n\r\n" +
+                            logEntryJson + "\r\n" +
+                            "--" + boundary + "--";
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.olog_url + "/logs/" + logEntry.getId() + "?markup=commonmark"))
-                    .header("Content-Type", CONTENT_TYPE_JSON)
                     .header("Authorization", basicAuthenticationHeader)
-                    .POST(HttpRequest.BodyPublishers.ofString(OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntry)))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofString(multipartBody))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
 
             LogEntry updated = OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
             changeHandlers.forEach(h -> h.logEntryChanged(updated));
