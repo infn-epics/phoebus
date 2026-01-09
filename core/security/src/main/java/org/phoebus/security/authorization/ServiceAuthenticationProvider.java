@@ -18,6 +18,7 @@
 
 package org.phoebus.security.authorization;
 
+import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 
 /**
@@ -30,13 +31,22 @@ public interface ServiceAuthenticationProvider {
      * Authenticates with the announced service.
      * @param username User name
      * @param password Password
+     * @return An {@link AuthenticationStatus} indicating the outcome.
      */
-    void authenticate(String username, String password);
+    AuthenticationStatus authenticate(String username, String password);
 
     /**
      * Signs out user from the service.
-     * @param token Username or other type of token (e.g. session cookie).
      */
+    default void logout(){
+        try {
+            SecureStore secureStore = new SecureStore();
+            secureStore.deleteScopedAuthenticationToken(getAuthenticationScope());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     void logout(String token);
 
     /**

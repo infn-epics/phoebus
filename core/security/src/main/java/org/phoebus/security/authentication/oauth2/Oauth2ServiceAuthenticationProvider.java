@@ -1,12 +1,14 @@
 package org.phoebus.security.authentication.oauth2;
 
+import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.tokens.AuthenticationScope;
 
 public class Oauth2ServiceAuthenticationProvider implements ServiceAuthenticationProvider {
     @Override
-    public void authenticate(String username, String password) {
+    public AuthenticationStatus authenticate(String username, String password) {
 
+        return null;
     }
 
     @Override

@@ -7,6 +7,10 @@
  *******************************************************************************/
 package org.phoebus.ui;
 
+import java.net.URI;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.phoebus.framework.preferences.AnnotatedPreferences;
 import org.phoebus.framework.preferences.Preference;
 
@@ -17,6 +21,8 @@ import org.phoebus.framework.preferences.Preference;
 
 public class Preferences
 {
+	public final static Logger logger = Logger.getLogger(Preferences.class.getPackageName());
+	
 	/** splash */
 	public static final String SPLASH = "splash";
     /** default_apps */
@@ -93,6 +99,14 @@ public class Preferences
     /** cache_hint_for_picture_and_symbol_widgets */
     @Preference public static String cache_hint_for_picture_and_symbol_widgets;
     @Preference public static boolean save_credentials;
+    /** documentation_location */
+    @Preference public static String documentation_location;
+    /** window_title_format **/
+    @Preference public static String window_title_format;
+    /** default_window_title **/
+    @Preference public static String default_window_title;
+    /** Custom stylings file */
+    @Preference public static String custom_css_styling;
 
 
 
@@ -104,5 +118,19 @@ public class Preferences
         // (PVASettings cannot use Preferences.max_array_formatting
         //  since the PVA library may be used standalone)
         System.setProperty("EPICS_PVA_MAX_ARRAY_FORMATTING", Integer.toString(max_array_formatting));
+        
+        // Check once if the custom style sheet is accessible
+        if (!custom_css_styling.isBlank())
+        {
+             try
+             {
+                 new URI(custom_css_styling).toURL().openStream().close();
+             }
+             catch (Exception ex)
+             {
+                 logger.log(Level.WARNING, custom_css_styling + " is inaccessible", ex);
+                 custom_css_styling = "";
+             }
+        }
     }
 }

@@ -86,6 +86,7 @@ import org.phoebus.ui.docking.DockItemWithInput;
 import org.phoebus.ui.docking.DockPane;
 import org.phoebus.ui.docking.DockPaneListener;
 import org.phoebus.ui.docking.DockStage;
+import org.phoebus.ui.docking.StageTitleManager;
 import org.phoebus.ui.help.OpenAbout;
 import org.phoebus.ui.help.OpenHelp;
 import org.phoebus.ui.internal.MementoHelper;
@@ -550,6 +551,8 @@ public class PhoebusApplication extends Application {
             // .. but schedule preparation to close
             closeMainStage();
         });
+
+        StageTitleManager.bindStageTitlesToActiveTabs(main_stage);
 
         DockPane.addListener(dock_pane_listener);
         DockPane.setActiveDockPane(DockStage.getDockPanes(main_stage).get(0));

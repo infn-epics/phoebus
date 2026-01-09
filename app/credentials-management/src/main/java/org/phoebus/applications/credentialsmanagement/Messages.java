@@ -32,6 +32,9 @@ public class Messages {
     public static String Title;
     public static String LoginWithOAuth2;
     public static String LogoutOAuth2;
+    public static String ServiceConnectionFailure;
+    public static String UnknownError;
+    public static String UserNotAuthenticated;
 
     static
     {
