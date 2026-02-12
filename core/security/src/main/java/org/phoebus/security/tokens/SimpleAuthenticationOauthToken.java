@@ -12,8 +12,23 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class SimpleAuthenticationOauthToken {
+
+    private static final Logger LOGGER = Logger.getLogger(SimpleAuthenticationOauthToken.class.getName());
+
+    /**
+     * Shared HttpClient for OIDC/JWKS requests. Uses the JVM default SSLContext
+     * (which may be trust-all if configured by OlogHttpClient) and HTTP/1.1 to
+     * avoid selector manager issues. Reusing a single instance prevents creation
+     * of multiple ephemeral HttpClient instances that waste file descriptors.
+     */
+    private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .followRedirects(HttpClient.Redirect.ALWAYS)
+            .build();
 
     private AuthenticationScope scope;
 
@@ -28,17 +43,15 @@ public class SimpleAuthenticationOauthToken {
         this.jwtToken = jwtToken;
     }
 
-
-
-    // create a function that check if a jwt token is still valid
+    /**
+     * Check if the JWT token is still valid by verifying signature and expiration.
+     */
     public boolean checkJwtToken() {
-
-            // check if the jwt token is still valid
-            RSAPublicKey publicKey = fetchPublicKey(); // Metodo per recuperare la chiave pubblica
+            RSAPublicKey publicKey = fetchPublicKey();
 
             com.auth0.jwt.interfaces.DecodedJWT decodedJWT = JWT.require(com.auth0.jwt.algorithms.Algorithm.RSA256(publicKey, null))
                     .build()
-                    .verify(jwtToken); // Verifica il token
+                    .verify(jwtToken);
 
             Date expiration = decodedJWT.getExpiresAt();
             return expiration.after(new Date());
@@ -49,7 +62,6 @@ public class SimpleAuthenticationOauthToken {
      */
     private RSAPublicKey fetchPublicKey() {
         try {
-            // Ottieni il documento di configurazione OIDC
             HttpRequest request =
                     HttpRequest
                             .newBuilder()
@@ -57,7 +69,7 @@ public class SimpleAuthenticationOauthToken {
                             .GET()
                             .build();
 
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = SHARED_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             Map<String, Object> oidcConfig = (Map<String, Object>) JSONValue.parse(response.body());
             if (oidcConfig == null) {
@@ -65,8 +77,6 @@ public class SimpleAuthenticationOauthToken {
             }
             String jwksUri = (String) oidcConfig.get("jwks_uri");
 
-
-            // Ottiene il JSON Web Key Set (JWKS) dal server OIDC
             request =
                     HttpRequest
                             .newBuilder()
@@ -74,18 +84,16 @@ public class SimpleAuthenticationOauthToken {
                             .GET()
                             .build();
 
-            response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            response = SHARED_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             Map<String, Object> jwks = (Map<String, Object>) JSONValue.parse(response.body());
 
             List<Map<String, Object>> keys = (List<Map<String, Object>>) jwks.get("keys");
 
-            // Get the first key
             Map<String, Object> key = keys.get(0);
             String modulusBase64 = (String) key.get("n");
             String exponentBase64 = (String) key.get("e");
 
-            // Convert the base64-encoded modulus and exponent to RSA public key
             byte[] modulusBytes = java.util.Base64.getUrlDecoder().decode(modulusBase64);
             byte[] exponentBytes = java.util.Base64.getUrlDecoder().decode(exponentBase64);
 
@@ -96,6 +104,7 @@ public class SimpleAuthenticationOauthToken {
                     .generatePublic(new java.security.spec.RSAPublicKeySpec(modulus, exponent));
 
         } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to fetch or parse public key from OIDC provider", e);
             throw new RuntimeException("Failed to fetch or parse public key from OIDC provider", e);
         }
     }

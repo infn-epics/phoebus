@@ -25,23 +25,31 @@ import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.olog.es.api.model.OlogObjectMappers;
 import org.phoebus.olog.es.api.model.OlogSearchResult;
 import org.phoebus.olog.es.authentication.LoginCredentials;
+import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.store.SecureStore;
-import org.phoebus.security.tokens.AuthenticationScope;
+import org.phoebus.applications.logbook.authentication.OlogAuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.util.http.HttpRequestMultipartBody;
 import org.phoebus.util.http.QueryParamsHelper;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import java.io.InputStream;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -51,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -80,6 +89,21 @@ public class OlogHttpClient implements LogClient {
         OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         OBJECT_MAPPER.registerModule(new JavaTimeModule());
         OBJECT_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+        // Set JVM-wide default SSLContext for trust-all if the olog URL is HTTPS.
+        // This avoids passing a custom SSLContext per HttpClient.Builder, which can
+        // cause "selector manager closed" errors in Java's HttpClient implementation.
+        if (Preferences.olog_url != null && Preferences.olog_url.toLowerCase().startsWith("https")) {
+            SSLContext sslContext = createTrustAllSslContext();
+            if (sslContext != null) {
+                try {
+                    SSLContext.setDefault(sslContext);
+                    LOGGER.log(Level.INFO, "Set JVM-wide trust-all SSLContext for HTTPS olog URL");
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Failed to set default SSLContext", e);
+                }
+            }
+        }
     }
 
     public static class Builder {
@@ -123,7 +147,7 @@ public class OlogHttpClient implements LogClient {
         private ScopedAuthenticationToken getCredentialsFromSecureStore() {
             try {
                 SecureStore secureStore = new SecureStore();
-                return secureStore.getScopedAuthenticationToken(AuthenticationScope.LOGBOOK);
+                return secureStore.getScopedAuthenticationToken(new OlogAuthenticationScope());
             } catch (Exception e) {
                 Logger.getLogger(OlogHttpClient.class.getName()).log(Level.WARNING, "Unable to instantiate SecureStore", e);
                 return null;
@@ -136,16 +160,58 @@ public class OlogHttpClient implements LogClient {
     }
 
 
-    private OlogHttpClient(String jwtToken) {
-        httpClient = HttpClient.newBuilder()
-                .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                // HttpClient rejects Duration.ZERO for the connect timeout value.
-                // To support infinite timeout (preference value == 0), use Long.MAX_VALUE
-                .connectTimeout(Duration.ofMillis(Preferences.connectTimeout <= 0 ? Long.MAX_VALUE : Preferences.connectTimeout))
-                .build();
+    private static SSLContext createTrustAllSslContext() {
+        try {
+            TrustManager trustAllManager = new X509ExtendedTrustManager() {
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) {}
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) {}
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {}
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {}
+            };
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{trustAllManager}, new SecureRandom());
+            return sslContext;
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to create trust-all SSLContext", e);
+            return null;
+        }
+    }
 
-        this.basicAuthenticationHeader = "Bearer " +jwtToken;
+    private static HttpClient.Builder newHttpClientBuilder() {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .executor(Executors.newCachedThreadPool())
+                .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
+                .followRedirects(HttpClient.Redirect.ALWAYS);
+        // SSLContext is set JVM-wide in the static initializer — no need to set per-builder.
+        // This avoids HttpClient-internal selector manager issues with custom SSLContext.
+        return builder;
+    }
+
+    private OlogHttpClient(String jwtToken) {
+        HttpClient.Builder builder = newHttpClientBuilder();
+        // Only set connectTimeout when a positive value is configured.
+        // Omitting it gives HttpClient's default (no timeout).
+        // Using Long.MAX_VALUE causes ArithmeticException (long overflow)
+        // in HttpClient's internal deadline/selector manager computation.
+        if (Preferences.connectTimeout > 0) {
+            builder.connectTimeout(Duration.ofMillis(Preferences.connectTimeout));
+        }
+        httpClient = builder.build();
+
+        this.basicAuthenticationHeader = "Bearer " + jwtToken;
 
 
         ServiceLoader<LogEntryChangeHandler> serviceLoader = ServiceLoader.load(LogEntryChangeHandler.class);
@@ -157,16 +223,12 @@ public class OlogHttpClient implements LogClient {
      */
     private OlogHttpClient(String userName, String password) {
         if(Preferences.connectTimeout > 0){
-            httpClient = HttpClient.newBuilder()
-                    .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
+            httpClient = newHttpClientBuilder()
                     .connectTimeout(Duration.ofMillis(Preferences.connectTimeout))
                     .build();
         }
         else{
-            httpClient = HttpClient.newBuilder()
-                    .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
+            httpClient = newHttpClientBuilder()
                     .build();
         }
 
@@ -216,7 +278,7 @@ public class OlogHttpClient implements LogClient {
                     .PUT(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
                     .build();
 
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 300) {
                 LOGGER.log(Level.SEVERE, "Failed to create log entry: " + response.body());
                 throw new LogbookException(response.body());
@@ -282,7 +344,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             OlogSearchResult searchResult = OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogSearchResult.class);
             return SearchResult.of(new ArrayList<>(searchResult.getLogs()),
                     searchResult.getHitCount());
@@ -400,20 +462,31 @@ public class OlogHttpClient implements LogClient {
      * @param password Password, must not be <code>null</code>.
      * @throws Exception if the login fails, e.g. bad credentials or service off-line.
      */
-    public void authenticate(String userName, String password) throws Exception {
+    public AuthenticationStatus authenticate(String userName, String password) {
 
-        String stringBuilder = Preferences.olog_url +
+        String loginUrl = Preferences.olog_url +
                 "/login";
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(stringBuilder))
-                .header("Content-Type", CONTENT_TYPE_JSON)
-                .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(new LoginCredentials(userName, password))))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 401) {
-            throw new Exception("Failed to login: user unauthorized");
-        } else if (response.statusCode() != 200) {
-            throw new Exception("Failed to login, got HTTP status " + response.statusCode());
+        LOGGER.log(Level.INFO, "Authenticating user '" + userName + "' against " + loginUrl);
+        try {
+            String jsonBody = OBJECT_MAPPER.writeValueAsString(new LoginCredentials(userName, password));
+            LOGGER.log(Level.FINE, "Login request body: " + jsonBody);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(loginUrl))
+                    .header("Content-Type", CONTENT_TYPE_JSON)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            LOGGER.log(Level.INFO, "Login response from " + loginUrl + ": status=" + response.statusCode() + ", body=" + response.body());
+            if (response.statusCode() == 200) {
+                return AuthenticationStatus.AUTHENTICATED;
+            } else if (response.statusCode() == 401) {
+                return AuthenticationStatus.BAD_CREDENTIALS;
+            } else {
+                return AuthenticationStatus.UNKNOWN_ERROR;
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to authenticate against " + loginUrl, e);
+            return AuthenticationStatus.SERVICE_OFFLINE;
         }
     }
 
@@ -428,10 +501,8 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            return HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString()).body();
-
-//            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-//            return response.body();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.body();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "failed to obtain service info", e);
             return "";
@@ -458,7 +529,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Logbook>>() {
             });
         } catch (Exception e) {
@@ -475,7 +546,7 @@ public class OlogHttpClient implements LogClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), new TypeReference<List<Tag>>() {
             });
         } catch (Exception e) {
@@ -559,7 +630,7 @@ public class OlogHttpClient implements LogClient {
                 .build();
 
         try {
-            HttpResponse<String> response = HttpClient.newBuilder().build().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return OlogObjectMappers.logEntryDeserializer.readValue(
                     response.body(), new TypeReference<List<LogTemplate>>() {
                     });

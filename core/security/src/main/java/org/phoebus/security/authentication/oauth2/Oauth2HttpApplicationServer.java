@@ -31,8 +31,13 @@ public class Oauth2HttpApplicationServer {
     public static Oauth2HttpApplicationServer create() throws Exception
     {
         if (instance != null)
-            throw new IllegalStateException("Must create at most once");
+            return instance;
         instance = new Oauth2HttpApplicationServer();
+        return instance;
+    }
+
+    /** Get the existing instance, or null if not created yet */
+    public static Oauth2HttpApplicationServer getInstance() {
         return instance;
     }
 

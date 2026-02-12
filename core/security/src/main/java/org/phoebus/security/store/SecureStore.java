@@ -194,7 +194,11 @@ public class SecureStore
         List<ScopedAuthenticationToken> allScopedAuthenticationTokens
                 = new ArrayList<>();
         for(String alias : aliases){
+            // Skip non-authentication entries (passwords handled via matching, and raw tokens like jwt_token/id_token are not scoped auth pairs)
             if(alias.endsWith(PASSWORD_TAG)){
+                continue;
+            }
+            if(!alias.equals(USERNAME_TAG) && !alias.endsWith("." + USERNAME_TAG)){
                 continue;
             }
             String[] tokens = alias.split("\\.");
@@ -212,7 +216,8 @@ public class SecureStore
             else{
                 scope = findAuthenticationScopeFromProviders(tokens[0]);
                 if(scope == null){
-                    throw new IllegalArgumentException("No authentication provider found matching scope \"" + tokens[0] + "\"");
+                    LOGGER.log(Level.WARNING, "No authentication provider found matching scope \"{0}\", skipping", tokens[0]);
+                    continue;
                 }
                 username = get(tokens[0] + "." + USERNAME_TAG);
                 password = get(scope.getScope() + "." + PASSWORD_TAG);

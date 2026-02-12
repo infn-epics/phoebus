@@ -10,7 +10,6 @@ import org.phoebus.framework.workbench.ApplicationService;
 import org.phoebus.framework.workbench.Locations;
 import org.phoebus.ui.application.ApplicationServer;
 import org.phoebus.ui.application.PhoebusApplication;
-import org.phoebus.security.authentication.oauth2.Oauth2HttpApplicationServer;
 
 import java.io.File;
 import java.io.InputStream;
