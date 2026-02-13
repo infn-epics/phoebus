@@ -1,0 +1,92 @@
+name: Build and Release Phoebus
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v5.0.3
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+        fail-fast: false
+        matrix:
+          os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+          include:
+            - os: ubuntu-latest
+              artifact_name: linux
+              file_extension: tar.gz
+            - os: windows-latest
+              artifact_name: windows
+              file_extension: zip
+            - os: macos-latest
+              artifact_name: macos
+              file_extension: zip
+  
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Maven and Java Action
+      uses: s4u/setup-maven-action@v1.18.0
+      with:
+        java-version: '17'
+        maven-version: '3.9.6'
+        
+    - name: Build
+      run: mvn --batch-mode install -DskipTests
+
+    - name: Get version from pom.xml
+      id: get_version
+      shell: bash
+      run: |
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+
+    - name: Rename artifact for release
+      shell: bash
+      run: |
+        cd phoebus-product/target
+        if [ -f *.tar.gz ]; then
+          mv *.tar.gz phoebus-${{ steps.get_version.outputs.version }}-${{ matrix.artifact_name }}.${{ matrix.file_extension }}
+        fi
+        if [ -f *.zip ]; then
+          mv *.zip phoebus-${{ steps.get_version.outputs.version }}-${{ matrix.artifact_name }}.${{ matrix.file_extension }}
+        fi
+    
+    - name: Upload Release Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: phoebus-${{ matrix.artifact_name }}
+        path: |
+          phoebus-product/target/phoebus-*.${{ matrix.file_extension }}
+        retention-days: 7
+
+  create_release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+    
+    - name: Display structure of downloaded files
+      run: ls -R release-artifacts
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-artifacts/*/*
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
