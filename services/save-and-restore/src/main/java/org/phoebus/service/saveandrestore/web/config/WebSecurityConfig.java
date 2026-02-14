@@ -2,6 +2,7 @@ package org.phoebus.service.saveandrestore.web.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.*;
@@ -28,6 +29,7 @@ import org.springframework.security.ldap.userdetails.DefaultLdapAuthoritiesPopul
 import org.springframework.security.ldap.userdetails.LdapAuthoritiesPopulator;
 import org.springframework.security.ldap.userdetails.PersonContextMapper;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * {@link Configuration} class setting up authentication/authorization depending on the
@@ -44,6 +46,15 @@ public class WebSecurityConfig {
      */
     @Value("${auth.impl:demo}")
     protected String authenitcationImplementation;
+
+    /**
+     * OAuth2/JWT authentication support.
+     */
+    @Value("${oauth2.enabled:false}")
+    private boolean oauth2Enabled;
+
+    @Autowired(required = false)
+    private JwtAuthenticationProvider jwtAuthenticationProvider;
 
     /**
      * External Active Directory configuration properties
@@ -204,6 +215,15 @@ public class WebSecurityConfig {
         http.csrf().disable();
         http.authorizeRequests().anyRequest().authenticated();
         http.httpBasic();
+
+        // When OAuth2 is enabled, add the JWT filter before the standard authentication filter.
+        // Bearer token requests are handled by JwtAuthenticationFilter -> JwtAuthenticationProvider.
+        // Non-Bearer requests fall through to httpBasic (demo/ldap/ad).
+        if (oauth2Enabled && jwtAuthenticationProvider != null) {
+            AuthenticationManager jwtAuthManager = authentication -> jwtAuthenticationProvider.authenticate(authentication);
+            http.addFilterBefore(new JwtAuthenticationFilter(jwtAuthManager), UsernamePasswordAuthenticationFilter.class);
+        }
+
         return http.build();
     }
 
