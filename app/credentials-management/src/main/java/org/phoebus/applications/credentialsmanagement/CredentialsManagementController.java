@@ -377,7 +377,8 @@ public class CredentialsManagementController {
     private void updateOlogOAuth2Status(boolean loggedIn) {
         for (ServiceItem item : serviceItems) {
             if (item.getAuthenticationScope() != null &&
-                    "logbook".equals(item.getAuthenticationScope().getScope())) {
+                    ("logbook".equals(item.getAuthenticationScope().getScope()) ||
+                     "save-and-restore".equals(item.getAuthenticationScope().getScope()))) {
                 if (loggedIn) {
                     try {
                         String jwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);

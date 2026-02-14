@@ -77,9 +77,26 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
         OBJECT_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
 
-    private String getBasicAuthenticationHeader() {
+    /**
+     * Returns an Authorization header value. If a JWT token is present in the
+     * {@link SecureStore} (set by the OAuth2 login flow in Credentials Management),
+     * a <code>Bearer</code> token is returned. Otherwise falls back to
+     * <code>Basic</code> authentication using scoped username/password credentials.
+     *
+     * @return Authorization header value, or <code>null</code> if no credentials are available.
+     */
+    private String getAuthorizationHeader() {
         try {
             SecureStore store = new SecureStore();
+
+            // Prefer JWT Bearer token (from OAuth2 login) if available
+            String jwtToken = store.get(SecureStore.JWT_TOKEN_TAG);
+            if (jwtToken != null && !jwtToken.isEmpty()) {
+                LOGGER.log(Level.FINE, "Using JWT Bearer token for save-and-restore authentication");
+                return "Bearer " + jwtToken;
+            }
+
+            // Fall back to Basic authentication
             ScopedAuthenticationToken scopedAuthenticationToken = store.getScopedAuthenticationToken(new SaveAndRestoreAuthenticationScope());
             if (scopedAuthenticationToken != null) {
                 String username = scopedAuthenticationToken.getUsername();
@@ -143,7 +160,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/node?parentNodeId=" + parentsUniqueId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .PUT(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(node)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -162,7 +179,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/node?customTimeForMigration=" + customTimeForMigration))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(nodeToUpdate)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -187,7 +204,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/node"))
                     .method("DELETE", HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(nodeIds)))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
@@ -222,7 +239,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/move?to=" + targetNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(sourceNodeIds)))
                     .build();
 
@@ -249,7 +266,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/copy?to=" + targetNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(sourceNodeIds)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -292,7 +309,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/config?parentNodeId=" + parentNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .PUT(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(configuration)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -318,7 +335,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/config"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(configuration)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -349,7 +366,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/snapshot?parentNodeId=" + parentNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .PUT(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(snapshot)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -368,7 +385,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/snapshot"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(snapshot)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -394,7 +411,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/composite-snapshot?parentNodeId=" + parentNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .PUT(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(compositeSnapshot)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -421,7 +438,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/composite-snapshot-consistency-check"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(snapshotNodeIds)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -441,7 +458,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/composite-snapshot"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(compositeSnapshot)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -478,7 +495,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/filter"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .PUT(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(filter)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -512,7 +529,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/filter/" + filterName))
                     .DELETE()
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
@@ -535,7 +552,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/tags"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(tagData)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -555,7 +572,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/tags"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .method("DELETE", HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(tagData)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -613,7 +630,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/restore/items"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(snapshotItems)))
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -639,7 +656,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.jmasarServiceUrl + "/restore/node?nodeId=" + snapshotNodeId))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", getBasicAuthenticationHeader())
+                    .header("Authorization", getAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
             HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
