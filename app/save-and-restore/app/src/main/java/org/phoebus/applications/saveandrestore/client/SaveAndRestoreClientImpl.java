@@ -78,10 +78,14 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
     }
 
     /**
-     * Returns an Authorization header value. If a JWT token is present in the
-     * {@link SecureStore} (set by the OAuth2 login flow in Credentials Management),
-     * a <code>Bearer</code> token is returned. Otherwise falls back to
-     * <code>Basic</code> authentication using scoped username/password credentials.
+     * Returns an Authorization header value.
+     * <p>
+     * Per-service username/password credentials always take precedence over the
+     * global OAuth2 JWT token. This allows each service to override the global
+     * OAuth2 login by setting its own credentials in the Credentials Management UI.
+     * If no per-service credentials are found, the global JWT token is used
+     * (if available from the OAuth2 login flow).
+     * </p>
      *
      * @return Authorization header value, or <code>null</code> if no credentials are available.
      */
@@ -89,19 +93,21 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
         try {
             SecureStore store = new SecureStore();
 
-            // Prefer JWT Bearer token (from OAuth2 login) if available
-            String jwtToken = store.get(SecureStore.JWT_TOKEN_TAG);
-            if (jwtToken != null && !jwtToken.isEmpty()) {
-                LOGGER.log(Level.FINE, "Using JWT Bearer token for save-and-restore authentication");
-                return "Bearer " + jwtToken;
-            }
-
-            // Fall back to Basic authentication
+            // 1. Per-service credentials override: if user has explicitly set
+            //    username/password for save-and-restore, use Basic auth.
             ScopedAuthenticationToken scopedAuthenticationToken = store.getScopedAuthenticationToken(new SaveAndRestoreAuthenticationScope());
             if (scopedAuthenticationToken != null) {
                 String username = scopedAuthenticationToken.getUsername();
                 String password = scopedAuthenticationToken.getPassword();
+                LOGGER.log(Level.FINE, "Using per-service Basic credentials for save-and-restore (user: {0})", username);
                 return "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
+            }
+
+            // 2. Fall back to global JWT Bearer token (from OAuth2 login)
+            String jwtToken = store.get(SecureStore.JWT_TOKEN_TAG);
+            if (jwtToken != null && !jwtToken.isEmpty()) {
+                LOGGER.log(Level.FINE, "Using global JWT Bearer token for save-and-restore authentication");
+                return "Bearer " + jwtToken;
             }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Unable to retrieve credentials from secure store", e);

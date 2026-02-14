@@ -3,7 +3,9 @@ package org.phoebus.security.tokens;
 import com.auth0.jwt.JWT;
 import net.minidev.json.JSONValue;
 import org.phoebus.security.PhoebusSecurity;
+import org.phoebus.security.managers.OidcTrustStoreManager;
 
+import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,15 +22,28 @@ public class SimpleAuthenticationOauthToken {
     private static final Logger LOGGER = Logger.getLogger(SimpleAuthenticationOauthToken.class.getName());
 
     /**
-     * Shared HttpClient for OIDC/JWKS requests. Uses the JVM default SSLContext
-     * (which may be trust-all if configured by OlogHttpClient) and HTTP/1.1 to
-     * avoid selector manager issues. Reusing a single instance prevents creation
-     * of multiple ephemeral HttpClient instances that waste file descriptors.
+     * Shared HttpClient for OIDC/JWKS requests. Uses the OIDC truststore-backed
+     * SSLContext so that the Keycloak server's TLS certificate is properly validated
+     * instead of relying on a trust-all approach.
      */
-    private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .followRedirects(HttpClient.Redirect.ALWAYS)
-            .build();
+    private static HttpClient getSharedHttpClient() {
+        SSLContext sslContext;
+        try {
+            sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to get OIDC SSLContext, using JVM default", e);
+            try {
+                sslContext = SSLContext.getDefault();
+            } catch (Exception ex) {
+                throw new RuntimeException("Cannot obtain default SSLContext", ex);
+            }
+        }
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .sslContext(sslContext)
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
+    }
 
     private AuthenticationScope scope;
 
@@ -69,7 +84,7 @@ public class SimpleAuthenticationOauthToken {
                             .GET()
                             .build();
 
-            HttpResponse<String> response = SHARED_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = getSharedHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
             Map<String, Object> oidcConfig = (Map<String, Object>) JSONValue.parse(response.body());
             if (oidcConfig == null) {
@@ -84,7 +99,7 @@ public class SimpleAuthenticationOauthToken {
                             .GET()
                             .build();
 
-            response = SHARED_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            response = getSharedHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
             Map<String, Object> jwks = (Map<String, Object>) JSONValue.parse(response.body());
 

@@ -9,6 +9,10 @@ import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.SimpleAuthenticationOauthToken;
 
+import org.phoebus.security.managers.OidcTrustStoreManager;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -16,9 +20,13 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 public class Oauth2HttpApplicationServer {
+
+    private static final Logger LOGGER = Logger.getLogger(Oauth2HttpApplicationServer.class.getName());
 
     private static volatile Oauth2HttpApplicationServer instance = null;
 
@@ -128,6 +136,17 @@ public class Oauth2HttpApplicationServer {
 
         URL url = new URL(tokenUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+        // If the token endpoint is HTTPS, use the OIDC truststore-backed SSLContext
+        if (conn instanceof HttpsURLConnection) {
+            try {
+                SSLContext sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
+                ((HttpsURLConnection) conn).setSSLSocketFactory(sslContext.getSocketFactory());
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to set OIDC SSLContext on token request, using JVM default", e);
+            }
+        }
+
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
