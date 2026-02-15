@@ -123,7 +123,7 @@ public class CredentialsManagementController {
     private final SimpleBooleanProperty listEmpty = new SimpleBooleanProperty(true);
     private final ObservableList<ServiceItem> serviceItems =
             FXCollections.observableArrayList();
-    private final SecureStore secureStore;
+    private SecureStore secureStore;
     private static final Logger LOGGER = Logger.getLogger(CredentialsManagementController.class.getName());
     private final List<ServiceAuthenticationProvider> authenticationProviders;
     private final StringProperty loginToAllUsernameProperty = new SimpleStringProperty();
@@ -516,6 +516,15 @@ public class CredentialsManagementController {
     }
 
     private void updateOlogOAuth2Status(boolean loggedIn) {
+        // Reload the SecureStore from disk so we pick up the JWT token that was
+        // just written by OAuth2Browser (which uses its own SecureStore instance).
+        // Without this, the controller's stale in-memory KeyStore would overwrite
+        // the JWT file on the next set() call.
+        try {
+            this.secureStore = new SecureStore();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to refresh SecureStore from disk", e);
+        }
         for (ServiceItem item : serviceItems) {
             if (item.getAuthenticationScope() != null &&
                     ("logbook".equals(item.getAuthenticationScope().getScope()) ||
