@@ -20,8 +20,14 @@ package org.phoebus.service.saveandrestore.web.config;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,8 +38,12 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
+import javax.net.ssl.SSLContext;
+import java.io.FileInputStream;
 import java.math.BigInteger;
 import java.security.KeyFactory;
+import java.security.KeyStore;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
@@ -63,7 +73,62 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
     @Value("${oauth2.claimsName:name}")
     private String claimsName;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private RestTemplate restTemplate;
+
+    /**
+     * Build a RestTemplate that trusts the JVM truststore (if set via
+     * {@code javax.net.ssl.trustStore}) <b>and</b> the JRE default cacerts so
+     * that connections to both the internal Elasticsearch cluster and the
+     * external OIDC provider succeed.
+     * <p>
+     * If no custom truststore is configured, or if anything goes wrong building
+     * the composite trust manager, we fall back to a plain {@link RestTemplate}
+     * and log a warning.
+     */
+    @PostConstruct
+    private void initRestTemplate() {
+        String tsPath = System.getProperty("javax.net.ssl.trustStore");
+        String tsPass = System.getProperty("javax.net.ssl.trustStorePassword", "changeit");
+
+        if (tsPath != null) {
+            try {
+                // Load the custom truststore (e.g. Elasticsearch cert)
+                KeyStore customTs = KeyStore.getInstance(KeyStore.getDefaultType());
+                try (FileInputStream fis = new FileInputStream(tsPath)) {
+                    customTs.load(fis, tsPass.toCharArray());
+                }
+
+                // Explicitly load the JRE default cacerts (not affected by
+                // -Djavax.net.ssl.trustStore which overrides what "default" means).
+                String javaHome = System.getProperty("java.home");
+                java.io.File cacertsFile = new java.io.File(javaHome, "lib/security/cacerts");
+                KeyStore cacerts = KeyStore.getInstance(KeyStore.getDefaultType());
+                try (FileInputStream fis = new FileInputStream(cacertsFile)) {
+                    cacerts.load(fis, "changeit".toCharArray());
+                }
+
+                // Build an SSLContext that trusts BOTH the JRE cacerts AND the custom truststore.
+                SSLContext sslContext = SSLContextBuilder.create()
+                        .loadTrustMaterial(cacerts, null)       // JRE default cacerts
+                        .loadTrustMaterial(customTs, null)      // custom truststore
+                        .build();
+
+                CloseableHttpClient httpClient = HttpClients.custom()
+                        .setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE))
+                        .build();
+
+                this.restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
+                logger.log(Level.INFO,
+                        "Initialized RestTemplate with composite truststore (JRE cacerts + {0})", tsPath);
+                return;
+            } catch (Exception e) {
+                logger.log(Level.WARNING,
+                        "Failed to build composite SSL context, falling back to plain RestTemplate: " + e.getMessage(), e);
+            }
+        }
+
+        this.restTemplate = new RestTemplate();
+    }
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
