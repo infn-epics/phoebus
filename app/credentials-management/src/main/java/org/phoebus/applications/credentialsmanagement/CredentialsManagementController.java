@@ -31,18 +31,24 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
@@ -51,6 +57,7 @@ import org.phoebus.framework.jobs.JobManager;
 import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
+import org.phoebus.security.managers.OidcTrustStoreManager;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
@@ -58,7 +65,11 @@ import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -88,6 +99,9 @@ public class CredentialsManagementController {
     private TableColumn<ServiceItem, StringProperty> loginResultColumn;
     @SuppressWarnings("unused")
     @FXML
+    private TableColumn<ServiceItem, ServiceItem> authModeColumn;
+    @SuppressWarnings("unused")
+    @FXML
     private Button loginToAllButton;
     @SuppressWarnings("unused")
     @FXML
@@ -103,6 +117,8 @@ public class CredentialsManagementController {
     private TableColumn<ServiceItem, String> scopeColumn;
     @FXML
     private Button loginWithOAuth2;
+    @FXML
+    private Button viewCertificatesButton;
 
     private final SimpleBooleanProperty listEmpty = new SimpleBooleanProperty(true);
     private final ObservableList<ServiceItem> serviceItems =
@@ -140,6 +156,16 @@ public class CredentialsManagementController {
             } else {
                 loginWithOAuth2.setVisible(false);
             }
+        }
+
+        // View Certificates button: only visible when OAuth2 is enabled
+        if (viewCertificatesButton != null) {
+            viewCertificatesButton.setVisible(PhoebusSecurity.enable_oauth2);
+        }
+
+        // Auth Mode column: only visible when OAuth2 is enabled
+        if (authModeColumn != null) {
+            authModeColumn.setVisible(PhoebusSecurity.enable_oauth2);
         }
 
         try {
@@ -181,6 +207,10 @@ public class CredentialsManagementController {
         usernameColumn.setCellFactory(c -> new UsernameTableCell());
         passwordColumn.setCellFactory(c -> new PasswordTableCell());
         loginResultColumn.setCellFactory(c -> new LoginResultTableCell());
+
+        // Auth Mode column with ComboBox
+        authModeColumn.setCellValueFactory(param -> new SimpleObjectProperty<>(param.getValue()));
+        authModeColumn.setCellFactory(c -> new AuthModeTableCell());
 
         loginToAllUsernameTextField.visibleProperty().bind(Bindings.createBooleanBinding(() -> providerCount.get() > 1, providerCount));
         loginToAllPasswordTextField.visibleProperty().bind(Bindings.createBooleanBinding(() -> providerCount.get() > 1, providerCount));
@@ -239,9 +269,10 @@ public class CredentialsManagementController {
                         } else {
                             btn.textProperty().bind(serviceItem.buttonTextProperty);
                             btn.disableProperty().bind(Bindings.createBooleanBinding(() ->
+                                            serviceItem.isOAuth2Mode() ||
                                             serviceItem.username.isNull().get() || serviceItem.username.get().isEmpty() ||
                                                     serviceItem.password.isNull().get() || serviceItem.password.get().isEmpty(),
-                                    serviceItem.username, serviceItem.password));
+                                    serviceItem.username, serviceItem.password, serviceItem.authModeProperty()));
                             setGraphic(btn);
                         }
                     }
@@ -312,6 +343,116 @@ public class CredentialsManagementController {
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "OAuth2 login/logout failed", e);
             ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, Messages.ErrorDialogBody, e);
+        }
+    }
+
+    /**
+     * Shows a dialog with the OIDC server's TLS certificates currently stored in the local truststore.
+     * Allows the user to refresh (re-fetch) certificates from the OIDC server.
+     */
+    @SuppressWarnings("unused")
+    @FXML
+    public void viewCertificates() {
+        try {
+            OidcTrustStoreManager mgr = OidcTrustStoreManager.getInstance();
+            StringBuilder sb = new StringBuilder();
+
+            // Read stored certificates from the truststore file
+            java.io.File truststoreFile = mgr.getTruststoreFile();
+            if (truststoreFile.exists()) {
+                KeyStore ks = KeyStore.getInstance("PKCS12");
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(truststoreFile)) {
+                    ks.load(fis, "changeit".toCharArray());
+                }
+
+                Enumeration<String> aliases = ks.aliases();
+                int certNum = 0;
+                while (aliases.hasMoreElements()) {
+                    String alias = aliases.nextElement();
+                    if (ks.isCertificateEntry(alias)) {
+                        X509Certificate cert = (X509Certificate) ks.getCertificate(alias);
+                        certNum++;
+                        sb.append("═══════════════════════════════════════════\n");
+                        sb.append(String.format("Certificate #%d  [%s]\n", certNum, alias));
+                        sb.append("═══════════════════════════════════════════\n");
+                        sb.append("Subject:     ").append(cert.getSubjectX500Principal()).append("\n");
+                        sb.append("Issuer:      ").append(cert.getIssuerX500Principal()).append("\n");
+                        sb.append("Valid From:  ").append(cert.getNotBefore()).append("\n");
+                        sb.append("Valid Until: ").append(cert.getNotAfter()).append("\n");
+                        sb.append("Serial:      ").append(cert.getSerialNumber().toString(16)).append("\n");
+                        sb.append("Algorithm:   ").append(cert.getSigAlgName()).append("\n");
+
+                        // SHA-256 fingerprint
+                        try {
+                            MessageDigest md = MessageDigest.getInstance("SHA-256");
+                            byte[] digest = md.digest(cert.getEncoded());
+                            StringBuilder hex = new StringBuilder();
+                            for (int i = 0; i < digest.length; i++) {
+                                if (i > 0) hex.append(":");
+                                hex.append(String.format("%02X", digest[i]));
+                            }
+                            sb.append("SHA-256:     ").append(hex).append("\n");
+                        } catch (Exception e) {
+                            sb.append("SHA-256:     (unavailable)\n");
+                        }
+
+                        // Validity check
+                        try {
+                            cert.checkValidity();
+                            sb.append("Status:      VALID\n");
+                        } catch (Exception e) {
+                            sb.append("Status:      EXPIRED or NOT YET VALID\n");
+                        }
+                        sb.append("\n");
+                    }
+                }
+
+                if (certNum == 0) {
+                    sb.append(Messages.NoCertificatesStored).append("\n");
+                }
+            } else {
+                sb.append(Messages.NoCertificatesStored).append("\n");
+            }
+
+            sb.append("\n").append(Messages.CertificateTruststorePath).append(": ").append(truststoreFile.getAbsolutePath()).append("\n");
+
+            // Show the certificate dialog
+            Alert alert = new Alert(Alert.AlertType.NONE);
+            alert.setTitle(Messages.ViewCertificates);
+            alert.setHeaderText(Messages.CertificateDialogHeader);
+            alert.getDialogPane().setPrefSize(700, 500);
+
+            TextArea textArea = new TextArea(sb.toString());
+            textArea.setEditable(false);
+            textArea.setWrapText(false);
+            textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px;");
+
+            VBox content = new VBox(10);
+            content.setPadding(new Insets(10));
+
+            Button refreshButton = new Button(Messages.RefreshCertificates);
+            refreshButton.setOnAction(e -> {
+                boolean success = mgr.refreshCertificates();
+                if (success) {
+                    LOGGER.info("Certificates refreshed successfully");
+                    alert.close();
+                    // Re-open to show updated certs
+                    Platform.runLater(this::viewCertificates);
+                } else {
+                    textArea.appendText("\n⚠ " + Messages.CertificateRefreshFailed + "\n");
+                }
+            });
+
+            content.getChildren().addAll(textArea, refreshButton);
+            VBox.setVgrow(textArea, javafx.scene.layout.Priority.ALWAYS);
+
+            alert.getDialogPane().setContent(content);
+            alert.getButtonTypes().add(ButtonType.CLOSE);
+            alert.showAndWait();
+
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to view certificates", e);
+            ExceptionDetailsErrorDialog.openError(parent, Messages.ErrorDialogTitle, "Failed to view certificates", e);
         }
     }
 
@@ -427,6 +568,8 @@ public class CredentialsManagementController {
         private final StringProperty buttonTextProperty = new SimpleStringProperty();
         private final StringProperty loginResultMessage = new SimpleStringProperty();
         private final ObjectProperty<AuthenticationStatus> authenticationStatus = new SimpleObjectProperty<>();
+        /** Per-service auth mode: "manual" or "oauth2" */
+        private final StringProperty authMode = new SimpleStringProperty(SecureStore.AUTH_MODE_MANUAL);
 
         public ServiceItem(ServiceAuthenticationProvider serviceAuthenticationProvider,
                            AuthenticationStatus authenticationResult, String username, String password) {
@@ -435,6 +578,14 @@ public class CredentialsManagementController {
             this.username.set(username);
             this.password.set(password);
             this.authenticationStatus.set(authenticationResult);
+            // Load persisted auth mode
+            try {
+                if (secureStore != null && getAuthenticationScope() != null) {
+                    this.authMode.set(secureStore.getAuthMode(getAuthenticationScope()));
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to load auth mode for " + getDisplayName(), e);
+            }
         }
 
         private void setupChangeListeners() {
@@ -500,6 +651,16 @@ public class CredentialsManagementController {
             return password;
         }
 
+        /** @return The auth mode property ("manual" or "oauth2") */
+        public StringProperty authModeProperty() {
+            return authMode;
+        }
+
+        /** @return Whether this service is configured to use OAuth2 */
+        public boolean isOAuth2Mode() {
+            return SecureStore.AUTH_MODE_OAUTH2.equals(authMode.get());
+        }
+
         public void logout() {
             serviceAuthenticationProvider.logout();
             authenticationStatus.set(AuthenticationStatus.UNDETERMINED);
@@ -528,6 +689,61 @@ public class CredentialsManagementController {
         }
     }
 
+    /**
+     * Table cell with a ComboBox to select authentication mode per service:
+     * "Manual" (username/password) or "OAuth2" (global JWT token).
+     */
+    private class AuthModeTableCell extends TableCell<ServiceItem, ServiceItem> {
+        private final ComboBox<String> comboBox = new ComboBox<>(
+                FXCollections.observableArrayList(Messages.AuthModeManual, Messages.AuthModeOAuth2));
+
+        {
+            comboBox.getStyleClass().add("combo-box");
+            comboBox.setMaxWidth(Double.MAX_VALUE);
+        }
+
+        @Override
+        protected void updateItem(ServiceItem serviceItem, boolean empty) {
+            super.updateItem(serviceItem, empty);
+            if (empty || serviceItem == null) {
+                setGraphic(null);
+                return;
+            }
+
+            // Set current value based on the service item's auth mode
+            String mode = serviceItem.authModeProperty().get();
+            comboBox.setValue(SecureStore.AUTH_MODE_OAUTH2.equals(mode)
+                    ? Messages.AuthModeOAuth2 : Messages.AuthModeManual);
+
+            // Listen for changes
+            comboBox.setOnAction(e -> {
+                String selected = comboBox.getValue();
+                String newMode = Messages.AuthModeOAuth2.equals(selected)
+                        ? SecureStore.AUTH_MODE_OAUTH2 : SecureStore.AUTH_MODE_MANUAL;
+                serviceItem.authModeProperty().set(newMode);
+
+                // Persist the auth mode
+                try {
+                    if (secureStore != null && serviceItem.getAuthenticationScope() != null) {
+                        secureStore.setAuthMode(serviceItem.getAuthenticationScope(), newMode);
+                    }
+                } catch (Exception ex) {
+                    LOGGER.log(Level.WARNING, "Failed to persist auth mode for " + serviceItem.getDisplayName(), ex);
+                }
+
+                // If switching to OAuth2 and already logged in globally, update this row
+                if (SecureStore.AUTH_MODE_OAUTH2.equals(newMode) && oauthLoggedIn.get()) {
+                    updateOlogOAuth2Status(true);
+                }
+
+                // Force table refresh
+                tableView.refresh();
+            });
+
+            setGraphic(comboBox);
+        }
+    }
+
     private class UsernameTableCell extends TableCell<ServiceItem, StringProperty> {
         @Override
         public void updateItem(StringProperty item, final boolean empty) {
@@ -540,8 +756,9 @@ public class CredentialsManagementController {
                 textField.getStyleClass().add("text-field-styling");
                 textField.textProperty().bindBidirectional(serviceItem.username);
                 textField.disableProperty().bind(Bindings.createBooleanBinding(() ->
-                                serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED),
-                        serviceItem.authenticationStatus));
+                                serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED)
+                                || serviceItem.isOAuth2Mode(),
+                        serviceItem.authenticationStatus, serviceItem.authModeProperty()));
                 textField.setOnKeyPressed(keyEvent -> {
                     if (keyEvent.getCode() == KeyCode.ENTER &&
                             !serviceItem.username.isNull().get() &&
@@ -569,8 +786,9 @@ public class CredentialsManagementController {
                 passwordField.textProperty().bindBidirectional(serviceItem.password);
                 passwordField.disableProperty().bind(Bindings.createBooleanBinding(() ->
                                 serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED) ||
-                                        serviceItem.authenticationStatus.get().equals(AuthenticationStatus.CACHED),
-                        serviceItem.authenticationStatus));
+                                        serviceItem.authenticationStatus.get().equals(AuthenticationStatus.CACHED) ||
+                                        serviceItem.isOAuth2Mode(),
+                        serviceItem.authenticationStatus, serviceItem.authModeProperty()));
                 serviceItem.password.set(
                         serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED) ||
                                 serviceItem.authenticationStatus.get().equals(AuthenticationStatus.CACHED)

@@ -34,6 +34,16 @@ public class SecureStore
     public static final
     String USERNAME_TAG = "username", PASSWORD_TAG = "password", JWT_TOKEN_TAG = "jwt_token";
 
+    /** Auth mode tag: stored per scope as {@code <scope>.auth_mode}.
+     *  Values: {@code "manual"} or {@code "oauth2"}. */
+    public static final String AUTH_MODE_TAG = "auth_mode";
+
+    /** Auth mode: use per-service username/password (Basic) */
+    public static final String AUTH_MODE_MANUAL = "manual";
+
+    /** Auth mode: use global OAuth2 JWT token (Bearer) */
+    public static final String AUTH_MODE_OAUTH2 = "oauth2";
+
     private static final Logger LOGGER = Logger.getLogger(SecureStore.class.getName());
 
     /**
@@ -93,6 +103,34 @@ public class SecureStore
     public void delete(String tag) throws Exception{
         LOGGER.log(Level.INFO, "Deleting entry " + tag + " from secure store");
         store.delete(tag);
+    }
+
+    /**
+     * Get the auth mode for a given scope.
+     * @param scope Scope identifier
+     * @return {@link #AUTH_MODE_MANUAL} or {@link #AUTH_MODE_OAUTH2}, defaults to {@link #AUTH_MODE_MANUAL} if not set.
+     * @throws Exception on error
+     */
+    public String getAuthMode(AuthenticationScope scope) throws Exception {
+        if (scope == null || scope.getScope().trim().isEmpty()) {
+            return AUTH_MODE_MANUAL;
+        }
+        String mode = get(scope.getScope().toLowerCase() + "." + AUTH_MODE_TAG);
+        return mode != null ? mode : AUTH_MODE_MANUAL;
+    }
+
+    /**
+     * Set the auth mode for a given scope.
+     * @param scope Scope identifier
+     * @param mode {@link #AUTH_MODE_MANUAL} or {@link #AUTH_MODE_OAUTH2}
+     * @throws Exception on error
+     */
+    public void setAuthMode(AuthenticationScope scope, String mode) throws Exception {
+        if (scope == null || scope.getScope().trim().isEmpty()) {
+            return;
+        }
+        set(scope.getScope().toLowerCase() + "." + AUTH_MODE_TAG, mode);
+        LOGGER.log(Level.INFO, "Auth mode for scope {0} set to {1}", new Object[]{scope.getScope(), mode});
     }
 
     /** @param scope Scope identifier, its name will be converted to lower case, see {@link ScopedAuthenticationToken}

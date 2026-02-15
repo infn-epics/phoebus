@@ -35,6 +35,16 @@ public class Messages {
     public static String ServiceConnectionFailure;
     public static String UnknownError;
     public static String UserNotAuthenticated;
+    public static String AuthMode;
+    public static String AuthModeManual;
+    public static String AuthModeOAuth2;
+    public static String ViewCertificates;
+    public static String ViewCertificatesTooltip;
+    public static String CertificateDialogHeader;
+    public static String NoCertificatesStored;
+    public static String RefreshCertificates;
+    public static String CertificateRefreshFailed;
+    public static String CertificateTruststorePath;
 
     static
     {
