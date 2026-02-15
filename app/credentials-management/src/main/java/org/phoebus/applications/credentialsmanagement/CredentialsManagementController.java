@@ -534,6 +534,19 @@ public class CredentialsManagementController {
                         item.password.set("(OAuth2 token)");
                         item.authenticationStatus.set(AuthenticationStatus.AUTHENTICATED);
                         item.loginResultMessage.set("OAuth2 OK");
+
+                        // Switch auth mode to OAuth2 and persist it so that
+                        // SaveAndRestoreClientImpl.getAuthorizationHeader() uses JWT Bearer directly.
+                        item.authModeProperty().set(SecureStore.AUTH_MODE_OAUTH2);
+                        secureStore.setAuthMode(item.getAuthenticationScope(), SecureStore.AUTH_MODE_OAUTH2);
+
+                        // Store a ScopedAuthenticationToken so that S&R's userIdentity is set
+                        // (enables context menu items like New Folder, Delete, etc.).
+                        // The password placeholder is not used for actual authentication when
+                        // auth_mode is "oauth2" — getAuthorizationHeader() uses the global JWT instead.
+                        secureStore.setScopedAuthentication(new ScopedAuthenticationToken(
+                                item.getAuthenticationScope(), username, "(OAuth2)"));
+
                         LOGGER.info("Olog service item updated: OAuth2 user=" + username);
                     } catch (Exception e) {
                         LOGGER.log(Level.WARNING, "Failed to update OAuth2 status in table", e);
@@ -543,6 +556,14 @@ public class CredentialsManagementController {
                     item.username.set(null);
                     item.password.set(null);
                     item.loginResultMessage.set(null);
+
+                    // Reset auth mode back to manual
+                    item.authModeProperty().set(SecureStore.AUTH_MODE_MANUAL);
+                    try {
+                        secureStore.setAuthMode(item.getAuthenticationScope(), SecureStore.AUTH_MODE_MANUAL);
+                    } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "Failed to reset auth mode for " + item.getDisplayName(), e);
+                    }
                 }
             }
         }

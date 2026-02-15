@@ -1,0 +1,131 @@
+---
+# Enhanced Ansible playbook to download Phoebus from various sources
+# Supports: GitHub Releases, Binary Server, GitHub Artifacts (with auth)
+
+- name: Install Phoebus from GitHub Release
+  hosts: localhost
+  vars:
+    phoebus_version: "v5.0.3-INFN"
+    github_repo: "infn-epics/phoebus"
+    phoebus_home: "/opt/phoebus"
+    
+    # Download sources (in order of preference)
+    download_sources:
+      - name: "GitHub Release"
+        url: "https://github.com/{{ github_repo }}/releases/download/{{ phoebus_version }}/phoebus-{{ phoebus_version | regex_replace('^v', '') }}-linux.tar.gz"
+        requires_auth: false
+      - name: "Binary Server"
+        url: "https://opensource.lnf.infn.it/binary/epics/phoebus/linux/product-{{ phoebus_version }}.tar.gz"
+        requires_auth: false
+      - name: "GitHub Latest Release"
+        url: "https://github.com/{{ github_repo }}/releases/latest/download/phoebus-linux.tar.gz"
+        requires_auth: false
+
+  tasks:
+    - name: Create Phoebus home directory
+      file:
+        path: "{{ phoebus_home }}"
+        state: directory
+        mode: '0755'
+
+    - name: Try downloading from each source
+      block:
+        - name: Attempt download
+          get_url:
+            url: "{{ item.url }}"
+            dest: "/tmp/phoebus.tar.gz"
+            timeout: 60
+          register: download_result
+          until: download_result is succeeded
+          retries: 2
+          delay: 5
+          loop: "{{ download_sources }}"
+          when: download_result is not defined or download_result.failed | default(false)
+
+      rescue:
+        - name: All downloads failed
+          fail:
+            msg: |
+              Failed to download Phoebus from any source.
+              Tried: {{ download_sources | map(attribute='name') | join(', ') }}
+              
+              Please check:
+              1. Is the release {{ phoebus_version }} published?
+              2. Are the download URLs accessible?
+              3. Check: https://github.com/{{ github_repo }}/releases
+
+    - name: Extract Phoebus
+      unarchive:
+        src: "/tmp/phoebus.tar.gz"
+        dest: "{{ phoebus_home }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Create version file
+      copy:
+        content: |
+          version: {{ phoebus_version }}
+          downloaded_from: {{ download_result.url }}
+          date: {{ ansible_date_time.iso8601 }}
+        dest: "{{ phoebus_home }}/version.txt"
+
+    - name: Verify installation
+      stat:
+        path: "{{ phoebus_home }}/phoebus.sh"
+      register: phoebus_script
+      failed_when: not phoebus_script.stat.exists
+
+    - name: Display installation info
+      debug:
+        msg: |
+          ✅ Phoebus {{ phoebus_version }} installed successfully!
+          Location: {{ phoebus_home }}
+          Run with: {{ phoebus_home }}/phoebus.sh
+
+    - name: Cleanup
+      file:
+        path: "/tmp/phoebus.tar.gz"
+        state: absent
+
+---
+# Alternative: Download from GitHub Releases with API (for latest)
+- name: Install Latest Phoebus Release from GitHub
+  hosts: localhost
+  vars:
+    github_repo: "infn-epics/phoebus"
+    phoebus_home: "/opt/phoebus"
+    
+  tasks:
+    - name: Get latest release info from GitHub API
+      uri:
+        url: "https://api.github.com/repos/{{ github_repo }}/releases/latest"
+        method: GET
+        return_content: yes
+      register: latest_release
+
+    - name: Find Linux artifact in release assets
+      set_fact:
+        linux_asset: "{{ latest_release.json.assets | selectattr('name', 'match', '.*linux.*\\.tar\\.gz$') | first }}"
+
+    - name: Display found version
+      debug:
+        msg: "Found Phoebus {{ latest_release.json.tag_name }}: {{ linux_asset.name }}"
+
+    - name: Download latest Linux build
+      get_url:
+        url: "{{ linux_asset.browser_download_url }}"
+        dest: "/tmp/phoebus-latest.tar.gz"
+
+    - name: Install Phoebus
+      unarchive:
+        src: "/tmp/phoebus-latest.tar.gz"
+        dest: "{{ phoebus_home }}"
+        remote_src: yes
+
+    - name: Save version info
+      copy:
+        content: |
+          version: {{ latest_release.json.tag_name }}
+          release_date: {{ latest_release.json.published_at }}
+          download_url: {{ linux_asset.browser_download_url }}
+        dest: "{{ phoebus_home }}/version.txt"

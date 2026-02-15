@@ -43,12 +43,53 @@ public abstract class SaveAndRestoreBaseController {
             if (token != null) {
                 userIdentity.set(token.getUsername());
             } else {
-                userIdentity.set(null);
+                // Check if OAuth2 login was done: auth_mode is "oauth2" and a JWT token exists
+                String authMode = secureStore.getAuthMode(new SaveAndRestoreAuthenticationScope());
+                if (SecureStore.AUTH_MODE_OAUTH2.equals(authMode)) {
+                    String jwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
+                    if (jwt != null) {
+                        String username = extractUsernameFromJwt(jwt);
+                        userIdentity.set(username);
+                    } else {
+                        userIdentity.set(null);
+                    }
+                } else {
+                    userIdentity.set(null);
+                }
             }
         } catch (Exception e) {
             Logger.getLogger(SaveAndRestoreBaseController.class.getName()).log(Level.WARNING, "Unable to retrieve authentication token for " +
                     new SaveAndRestoreAuthenticationScope().getScope() + " scope", e);
         }
+    }
+
+    /**
+     * Extracts the username from a JWT token by decoding the payload and reading the "preferred_username" claim.
+     *
+     * @param jwt The JWT token string.
+     * @return The username, or "OAuth2" if the claim is not found.
+     */
+    private static String extractUsernameFromJwt(String jwt) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length < 2) return "OAuth2";
+            byte[] decoded = java.util.Base64.getUrlDecoder().decode(parts[1]);
+            String payload = new String(decoded, java.nio.charset.StandardCharsets.UTF_8);
+            // Use simple JSON parsing to avoid extra dependency
+            int idx = payload.indexOf("\"preferred_username\"");
+            if (idx >= 0) {
+                int colonIdx = payload.indexOf(':', idx);
+                int quoteStart = payload.indexOf('"', colonIdx + 1);
+                int quoteEnd = payload.indexOf('"', quoteStart + 1);
+                if (quoteStart >= 0 && quoteEnd > quoteStart) {
+                    return payload.substring(quoteStart + 1, quoteEnd);
+                }
+            }
+        } catch (Exception e) {
+            Logger.getLogger(SaveAndRestoreBaseController.class.getName())
+                    .log(Level.WARNING, "Failed to extract username from JWT", e);
+        }
+        return "OAuth2";
     }
 
     public void secureStoreChanged(List<ScopedAuthenticationToken> validTokens) {
