@@ -280,11 +280,16 @@ public class OlogHttpClient implements LogClient {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 300) {
-                LOGGER.log(Level.SEVERE, "Failed to create log entry: " + response.body());
-                throw new LogbookException(response.body());
+                String body = response.body();
+                String errorMsg = "HTTP " + response.statusCode()
+                        + (body != null && !body.isBlank() ? ": " + body : " (no response body)");
+                LOGGER.log(Level.SEVERE, "Failed to create log entry: " + errorMsg);
+                throw new LogbookException(errorMsg);
             } else {
                 return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
             }
+        } catch (LogbookException e) {
+            throw e;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to submit log entry, got client exception", e);
             throw new LogbookException(e);

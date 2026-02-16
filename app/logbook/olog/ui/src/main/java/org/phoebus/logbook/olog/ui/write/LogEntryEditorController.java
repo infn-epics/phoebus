@@ -804,13 +804,17 @@ public class LogEntryEditorController {
             } catch (LogbookException e) {
                 logger.log(Level.WARNING, "Unable to submit log entry", e);
                 Platform.runLater(() -> {
-                    if (e.getCause() != null && e.getCause().getMessage() != null) {
-                        completionMessageLabel.textProperty().setValue(e.getCause().getMessage());
-                    } else if (e.getMessage() != null) {
-                        completionMessageLabel.textProperty().setValue(e.getMessage());
-                    } else {
-                        completionMessageLabel.textProperty().setValue(org.phoebus.logbook.Messages.SubmissionFailed);
+                    String msg = null;
+                    if (e.getCause() != null && e.getCause().getMessage() != null
+                            && !e.getCause().getMessage().isBlank()) {
+                        msg = e.getCause().getMessage();
+                    } else if (e.getMessage() != null && !e.getMessage().isBlank()) {
+                        msg = e.getMessage();
                     }
+                    if (msg == null || msg.isBlank()) {
+                        msg = org.phoebus.logbook.Messages.SubmissionFailed;
+                    }
+                    completionMessageLabel.textProperty().setValue(msg);
                 });
             }
             submissionInProgress.set(false);
