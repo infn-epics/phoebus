@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.ToolBar?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.web.WebView?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.phoebus.applications.utility.logbook.LogbookTemplateManagerController"
+      spacing="0">
+
+    <!-- Top toolbar -->
+    <ToolBar>
+        <Button fx:id="refreshButton" text="Refresh" onAction="#onRefresh"/>
+        <Button fx:id="importButton" text="Import JSON" onAction="#onImportJson"/>
+        <Button fx:id="exportButton" text="Export JSON" onAction="#onExportJson"/>
+        <Label fx:id="statusLabel" text="" style="-fx-padding: 0 0 0 10;"/>
+    </ToolBar>
+
+    <!-- Main content: TabPane -->
+    <TabPane fx:id="mainTabPane" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+
+        <!-- ==================== TEMPLATES TAB ==================== -->
+        <Tab text="Templates">
+            <SplitPane dividerPositions="0.55" orientation="HORIZONTAL">
+                <!-- Left: table + actions -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <TableView fx:id="templatesTable" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn fx:id="templateNameCol" text="Name" prefWidth="180"/>
+                            <TableColumn fx:id="templateTitleCol" text="Title" prefWidth="200"/>
+                            <TableColumn fx:id="templateLevelCol" text="Level" prefWidth="80"/>
+                            <TableColumn fx:id="templateOwnerCol" text="Owner" prefWidth="120"/>
+                        </columns>
+                    </TableView>
+                    <HBox spacing="5">
+                        <Button text="New" onAction="#onNewTemplate"/>
+                        <Button text="Edit" onAction="#onEditTemplate"/>
+                        <Button text="Delete" onAction="#onDeleteTemplate"/>
+                    </HBox>
+                </VBox>
+                <!-- Right: Markdown preview -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <Label text="Markdown Preview" style="-fx-font-weight: bold;"/>
+                    <WebView fx:id="templatePreviewWebView" VBox.vgrow="ALWAYS"/>
+                </VBox>
+            </SplitPane>
+        </Tab>
+
+        <!-- ==================== LOGBOOKS TAB ==================== -->
+        <Tab text="Logbooks">
+            <SplitPane dividerPositions="0.55" orientation="HORIZONTAL">
+                <!-- Left: table + actions -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <TableView fx:id="logbooksTable" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn fx:id="logbookNameCol" text="Name" prefWidth="250"/>
+                            <TableColumn fx:id="logbookOwnerCol" text="Owner" prefWidth="200"/>
+                        </columns>
+                    </TableView>
+                    <HBox spacing="5" alignment="CENTER_LEFT">
+                        <Label text="Name:"/>
+                        <TextField fx:id="logbookNameField" prefWidth="150" promptText="logbook name"/>
+                        <Label text="Owner:"/>
+                        <TextField fx:id="logbookOwnerField" prefWidth="150" promptText="owner"/>
+                        <Button text="Create" onAction="#onCreateLogbook"/>
+                        <Button text="Delete" onAction="#onDeleteLogbook"/>
+                    </HBox>
+                </VBox>
+                <!-- Right: preview -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <Label text="JSON Preview" style="-fx-font-weight: bold;"/>
+                    <TextArea fx:id="logbookPreviewArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS"
+                              promptText="Select a logbook to see its JSON"/>
+                </VBox>
+            </SplitPane>
+        </Tab>
+
+        <!-- ==================== TAGS TAB ==================== -->
+        <Tab text="Tags">
+            <SplitPane dividerPositions="0.55" orientation="HORIZONTAL">
+                <!-- Left: table + actions -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <TableView fx:id="tagsTable" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn fx:id="tagNameCol" text="Name" prefWidth="300"/>
+                            <TableColumn fx:id="tagStateCol" text="State" prefWidth="150"/>
+                        </columns>
+                    </TableView>
+                    <HBox spacing="5" alignment="CENTER_LEFT">
+                        <Label text="Name:"/>
+                        <TextField fx:id="tagNameField" prefWidth="200" promptText="tag name"/>
+                        <Button text="Create" onAction="#onCreateTag"/>
+                        <Button text="Delete" onAction="#onDeleteTag"/>
+                    </HBox>
+                </VBox>
+                <!-- Right: preview -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <Label text="JSON Preview" style="-fx-font-weight: bold;"/>
+                    <TextArea fx:id="tagPreviewArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS"
+                              promptText="Select a tag to see its JSON"/>
+                </VBox>
+            </SplitPane>
+        </Tab>
+
+        <!-- ==================== PROPERTIES TAB ==================== -->
+        <Tab text="Properties">
+            <SplitPane dividerPositions="0.55" orientation="HORIZONTAL">
+                <!-- Left: table + actions -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn fx:id="propertyNameCol" text="Name" prefWidth="200"/>
+                            <TableColumn fx:id="propertyOwnerCol" text="Owner" prefWidth="120"/>
+                            <TableColumn fx:id="propertyAttrsCol" text="Attributes" prefWidth="250"/>
+                        </columns>
+                    </TableView>
+                    <HBox spacing="5" alignment="CENTER_LEFT">
+                        <Label text="Name:"/>
+                        <TextField fx:id="propertyNameField" prefWidth="140" promptText="property name"/>
+                        <Label text="Owner:"/>
+                        <TextField fx:id="propertyOwnerField" prefWidth="100" promptText="owner"/>
+                        <Label text="Attributes:"/>
+                        <TextField fx:id="propertyAttrsField" prefWidth="160" promptText="attr1, attr2, ..."/>
+                        <Button text="Create" onAction="#onCreateProperty"/>
+                        <Button text="Delete" onAction="#onDeleteProperty"/>
+                    </HBox>
+                </VBox>
+                <!-- Right: preview -->
+                <VBox spacing="5">
+                    <padding><Insets top="5" bottom="5" left="5" right="5"/></padding>
+                    <Label text="JSON Preview" style="-fx-font-weight: bold;"/>
+                    <TextArea fx:id="propertyPreviewArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS"
+                              promptText="Select a property to see its JSON"/>
+                </VBox>
+            </SplitPane>
+        </Tab>
+
+    </TabPane>
+
+</VBox>

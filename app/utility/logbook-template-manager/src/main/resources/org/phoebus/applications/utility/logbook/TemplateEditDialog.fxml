@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.ToolBar?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.web.WebView?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.phoebus.applications.utility.logbook.TemplateEditDialogController"
+      spacing="8" prefWidth="750" prefHeight="650">
+    <padding><Insets top="10" bottom="10" left="10" right="10"/></padding>
+
+    <GridPane hgap="10" vgap="8">
+        <columnConstraints>
+            <ColumnConstraints prefWidth="80"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="Name:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <TextField fx:id="nameField" promptText="Template name (unique)" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <Label text="Title:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <TextField fx:id="titleField" promptText="Log entry title" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+        <Label text="Level:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <ComboBox fx:id="levelCombo" prefWidth="200" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+    </GridPane>
+
+    <!-- Markdown editor toolbar -->
+    <Label text="Body (Markdown):" style="-fx-font-weight: bold;"/>
+    <ToolBar style="-fx-padding: 2;">
+        <Button text="B" style="-fx-font-weight: bold;" onAction="#onBold">
+            <tooltip><Tooltip text="Bold (Ctrl+B)"/></tooltip>
+        </Button>
+        <Button text="I" style="-fx-font-style: italic;" onAction="#onItalic">
+            <tooltip><Tooltip text="Italic (Ctrl+I)"/></tooltip>
+        </Button>
+        <Button text="H1" onAction="#onH1">
+            <tooltip><Tooltip text="Heading 1"/></tooltip>
+        </Button>
+        <Button text="H2" onAction="#onH2">
+            <tooltip><Tooltip text="Heading 2"/></tooltip>
+        </Button>
+        <Button text="H3" onAction="#onH3">
+            <tooltip><Tooltip text="Heading 3"/></tooltip>
+        </Button>
+        <Separator/>
+        <Button text="• List" onAction="#onBulletList">
+            <tooltip><Tooltip text="Bullet list"/></tooltip>
+        </Button>
+        <Button text="1. List" onAction="#onNumberedList">
+            <tooltip><Tooltip text="Numbered list"/></tooltip>
+        </Button>
+        <Button text="&lt;/&gt;" onAction="#onCode">
+            <tooltip><Tooltip text="Code block"/></tooltip>
+        </Button>
+        <Button text="Link" onAction="#onLink">
+            <tooltip><Tooltip text="Insert link"/></tooltip>
+        </Button>
+        <Separator/>
+        <Button text="Table" onAction="#onInsertTable">
+            <tooltip><Tooltip text="Insert table"/></tooltip>
+        </Button>
+        <Label text="Rows:"/>
+        <Spinner fx:id="tableRowsSpinner" prefWidth="65" editable="true"/>
+        <Label text="Cols:"/>
+        <Spinner fx:id="tableColsSpinner" prefWidth="65" editable="true"/>
+        <Separator/>
+        <Button text="Preview" onAction="#onPreview">
+            <tooltip><Tooltip text="Toggle markdown preview"/></tooltip>
+        </Button>
+    </ToolBar>
+
+    <!-- Editor + Preview side by side -->
+    <TextArea fx:id="sourceArea" wrapText="true" prefRowCount="10" VBox.vgrow="ALWAYS"
+              promptText="Markdown body content of the template"/>
+    <WebView fx:id="previewWebView" prefHeight="150" managed="false" visible="false"/>
+
+    <!-- Logbooks and Tags -->
+    <HBox spacing="20">
+        <VBox spacing="3" HBox.hgrow="ALWAYS">
+            <Label text="Logbooks:"/>
+            <ListView fx:id="logbooksList" prefHeight="80"/>
+        </VBox>
+        <VBox spacing="3" HBox.hgrow="ALWAYS">
+            <Label text="Tags:"/>
+            <ListView fx:id="tagsList" prefHeight="80"/>
+        </VBox>
+    </HBox>
+
+    <!-- Properties -->
+    <Label text="Properties:" style="-fx-font-weight: bold;"/>
+    <HBox spacing="10">
+        <VBox spacing="3" HBox.hgrow="ALWAYS">
+            <ListView fx:id="propertiesList" prefHeight="80"/>
+        </VBox>
+        <VBox spacing="5">
+            <Button text="Add" prefWidth="75" onAction="#onAddProperty"/>
+            <Button text="Edit Attrs" prefWidth="75" onAction="#onEditPropertyAttrs"/>
+            <Button text="Remove" prefWidth="75" onAction="#onRemoveProperty"/>
+        </VBox>
+    </HBox>
+</VBox>

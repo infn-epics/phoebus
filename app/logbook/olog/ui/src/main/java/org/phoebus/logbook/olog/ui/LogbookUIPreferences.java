@@ -52,6 +52,36 @@ public class LogbookUIPreferences {
     @Preference
     public static boolean oauth2_auth_olog_enabled;
 
+    // ========== PDF Export Preferences ==========
+
+    /** Font family used in PDF report (CSS font-family value). */
+    @Preference
+    public static String pdf_font_family;
+
+    /** Base body font size in pt for PDF report. */
+    @Preference
+    public static int pdf_font_size;
+
+    /** Title shown on the PDF cover page. Default: "Olog" */
+    @Preference
+    public static String pdf_title;
+
+    /** Subtitle shown on the PDF cover page. Default: "Electronic Logbook" */
+    @Preference
+    public static String pdf_subtitle;
+
+    /** Accent colour (hex) used for headers, stripes, etc. Default: #1a237e */
+    @Preference
+    public static String pdf_accent_color;
+
+    /** Whether to embed attachment images as base64 in the PDF. If false, URL references are used. */
+    @Preference
+    public static boolean pdf_embed_images;
+
+    /** Whether to include a Table of Contents page in the PDF. Default: true */
+    @Preference
+    public static boolean pdf_toc;
+
 
     static {
         AnnotatedPreferences.initialize(LogbookUIPreferences.class, "/log_olog_ui_preferences.properties");

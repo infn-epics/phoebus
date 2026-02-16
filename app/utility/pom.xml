@@ -12,5 +12,6 @@
   <packaging>pom</packaging>
   <modules>
     <module>preference-manager</module>
+    <module>logbook-template-manager</module>
   </modules>
 </project>

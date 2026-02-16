@@ -20,6 +20,7 @@ public class OlogProperty implements Property {
 
     private int id;
     private String name = null;
+    private String owner = null;
     private Map<String, String> attributes;
 
     /**
@@ -80,6 +81,24 @@ public class OlogProperty implements Property {
      */
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * Getter for property owner.
+     *
+     * @return property owner
+     */
+    public String getOwner() {
+        return owner;
+    }
+
+    /**
+     * Setter for property owner.
+     *
+     * @param owner property owner
+     */
+    public void setOwner(String owner) {
+        this.owner = owner;
     }
 
     /**

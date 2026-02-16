@@ -69,7 +69,11 @@ public class Messages
             TextAreaContextMenuSelectAll,
             TextAreaContextMenuUndo,
             UnsupportedFileType,
-            UpdateLogEntry;
+            UpdateLogEntry,
+            PrintSearchResults,
+            PrintNoPrinter,
+            PrintNoResults,
+            PrintJobSent;
 
     static
     {
