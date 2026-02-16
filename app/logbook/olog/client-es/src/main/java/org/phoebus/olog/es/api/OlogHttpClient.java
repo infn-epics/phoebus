@@ -385,8 +385,10 @@ public class OlogHttpClient implements LogClient {
     }
 
     /**
-     * Updates an existing {@link LogEntry}. Note that unlike the {@link #save(LogEntry, LogEntry)} API,
-     * this does not support attachments, i.e. it does not set up a multipart request to the service.
+     * Updates an existing {@link LogEntry}. Supports attachments via a multipart request,
+     * consistent with the {@link #save(LogEntry, LogEntry)} API. Existing server-side attachments
+     * (those without a local {@link java.io.File}) are preserved through the JSON metadata;
+     * only new attachments with a local file are uploaded as file parts.
      *
      * @param logEntry - the updated log entry
      * @return The updated {@link LogEntry}
@@ -395,26 +397,35 @@ public class OlogHttpClient implements LogClient {
     public LogEntry update(LogEntry logEntry) {
 
         try {
-            String boundary = "----Boundary" + System.currentTimeMillis();
+            HttpRequestMultipartBody httpRequestMultipartBody = new HttpRequestMultipartBody();
+            httpRequestMultipartBody.addTextPart("logEntry",
+                    OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntry),
+                    "application/json");
 
-            String logEntryJson = OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntry);
-
-            String multipartBody =
-                    "--" + boundary + "\r\n" +
-                            "Content-Disposition: form-data; name=\"logEntry\"; filename=\"logEntry.json\"\r\n" +
-                            "Content-Type: application/json\r\n\r\n" +
-                            logEntryJson + "\r\n" +
-                            "--" + boundary + "--";
+            for (Attachment attachment : logEntry.getAttachments()) {
+                if (attachment.getFile() != null
+                        && attachment.getFile().exists()
+                        && attachment.getFile().canRead()) {
+                    httpRequestMultipartBody.addFilePart(attachment.getFile());
+                }
+            }
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.olog_url + "/logs/" + logEntry.getId() + "?markup=commonmark"))
                     .header("Authorization", basicAuthenticationHeader)
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofString(multipartBody))
+                    .header("Content-Type", httpRequestMultipartBody.getContentType())
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
+            if (response.statusCode() >= 300) {
+                String body = response.body();
+                String errorMsg = "HTTP " + response.statusCode()
+                        + (body != null && !body.isBlank() ? ": " + body : " (no response body)");
+                LOGGER.log(Level.SEVERE, "Failed to update log entry id=" + logEntry.getId() + ": " + errorMsg);
+                return null;
+            }
 
             LogEntry updated = OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
             changeHandlers.forEach(h -> h.logEntryChanged(updated));
