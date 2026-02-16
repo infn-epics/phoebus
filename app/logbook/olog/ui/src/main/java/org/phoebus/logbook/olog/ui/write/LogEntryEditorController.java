@@ -798,12 +798,23 @@ public class LogEntryEditorController {
                     }
                 }
                 attachmentsEditorController.deleteTemporaryFiles();
-                // This will close the editor
-                Platform.runLater(this::cancel);
+                logger.log(Level.INFO, "Log entry submitted successfully");
+                // Show success notification, then close the editor
+                Platform.runLater(() -> {
+                    completionMessageLabel.setStyle("-fx-text-fill: green;");
+                    completionMessageLabel.textProperty().setValue("Log entry submitted successfully");
+                    submissionInProgress.set(false);
+                    // Close editor after a short delay so the user sees the message
+                    new Thread(() -> {
+                        try { Thread.sleep(1500); } catch (InterruptedException ie) { /* ignore */ }
+                        Platform.runLater(this::cancel);
+                    }).start();
+                });
 
             } catch (LogbookException e) {
                 logger.log(Level.WARNING, "Unable to submit log entry", e);
                 Platform.runLater(() -> {
+                    completionMessageLabel.setStyle("");
                     String msg = null;
                     if (e.getCause() != null && e.getCause().getMessage() != null
                             && !e.getCause().getMessage().isBlank()) {
@@ -815,6 +826,15 @@ public class LogEntryEditorController {
                         msg = org.phoebus.logbook.Messages.SubmissionFailed;
                     }
                     completionMessageLabel.textProperty().setValue(msg);
+                });
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Unable to submit log entry", e);
+                Platform.runLater(() -> {
+                    completionMessageLabel.setStyle("");
+                    completionMessageLabel.textProperty().setValue(
+                            e.getMessage() != null && !e.getMessage().isBlank()
+                                    ? e.getMessage()
+                                    : org.phoebus.logbook.Messages.SubmissionFailed);
                 });
             }
             submissionInProgress.set(false);
