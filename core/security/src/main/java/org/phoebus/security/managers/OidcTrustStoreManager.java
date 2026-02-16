@@ -15,13 +15,22 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.Socket;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -61,6 +70,9 @@ public class OidcTrustStoreManager {
     private final File truststoreFile;
     private KeyStore truststore;
     private SSLContext sslContext;
+
+    /** Last connection error message, or {@code null} if the last operation succeeded. */
+    private volatile String lastConnectionError;
 
     /**
      * Get or create the singleton instance.
@@ -133,8 +145,9 @@ public class OidcTrustStoreManager {
 
             X509Certificate[] chain = fetchCertificateChain(host, port);
             if (chain == null || chain.length == 0) {
-                LOGGER.log(Level.WARNING, "No certificates received from {0}:{1}",
-                        new Object[]{host, port});
+                String msg = "No certificates received from " + host + ":" + port;
+                LOGGER.log(Level.WARNING, msg);
+                lastConnectionError = msg;
                 return false;
             }
 
@@ -155,10 +168,13 @@ public class OidcTrustStoreManager {
 
             LOGGER.log(Level.INFO, "Successfully acquired and stored {0} certificate(s) from {1}",
                     new Object[]{chain.length, host});
+            lastConnectionError = null;
             return true;
 
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to acquire certificates from " + httpsUrl, e);
+            String msg = "Failed to connect to IDP at " + httpsUrl + ": " + e.getMessage();
+            LOGGER.log(Level.WARNING, msg, e);
+            lastConnectionError = msg;
             return false;
         }
     }
@@ -187,11 +203,26 @@ public class OidcTrustStoreManager {
         return truststoreFile;
     }
 
+    /**
+     * Returns the error message from the last failed IDP connection attempt,
+     * or {@code null} if the last attempt was successful.
+     *
+     * @return Error message, or {@code null}
+     */
+    public String getLastConnectionError() {
+        return lastConnectionError;
+    }
+
     // ---- Private helpers ----
 
     /**
      * Connect to a host via TLS using a trust-all context (just to grab certs),
      * and return the server's certificate chain.
+     * <p>
+     * If the JVM is configured to use an HTTPS proxy (via {@code https.proxyHost} /
+     * {@code https.proxyPort} system properties, or the default {@link ProxySelector}),
+     * the connection is tunnelled through the proxy using HTTP CONNECT.
+     * </p>
      */
     private X509Certificate[] fetchCertificateChain(String host, int port) throws Exception {
         // Use a capturing trust manager to grab the certificate chain
@@ -217,12 +248,98 @@ public class OidcTrustStoreManager {
         tempCtx.init(null, new TrustManager[]{capturingTm}, null);
         SSLSocketFactory factory = tempCtx.getSocketFactory();
 
-        try (SSLSocket socket = (SSLSocket) factory.createSocket(host, port)) {
-            socket.setSoTimeout(CONNECT_TIMEOUT_MS);
-            socket.startHandshake();
+        // Detect proxy configuration
+        Proxy proxy = resolveProxy(host, port);
+
+        if (proxy != null && proxy.type() == Proxy.Type.HTTP) {
+            // Tunnel through HTTP proxy using CONNECT
+            InetSocketAddress proxyAddr = (InetSocketAddress) proxy.address();
+            LOGGER.log(Level.INFO, "Using HTTPS proxy {0}:{1} to reach {2}:{3}",
+                    new Object[]{proxyAddr.getHostString(), proxyAddr.getPort(), host, port});
+
+            try (Socket tunnel = new Socket()) {
+                tunnel.setSoTimeout(CONNECT_TIMEOUT_MS);
+                tunnel.connect(proxyAddr, CONNECT_TIMEOUT_MS);
+
+                // Send HTTP CONNECT request to the proxy
+                String connectReq = "CONNECT " + host + ":" + port + " HTTP/1.1\r\n"
+                        + "Host: " + host + ":" + port + "\r\n"
+                        + "\r\n";
+                OutputStream out = tunnel.getOutputStream();
+                out.write(connectReq.getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+
+                // Read the proxy response status line
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(tunnel.getInputStream(), StandardCharsets.US_ASCII));
+                String statusLine = reader.readLine();
+                if (statusLine == null || !statusLine.contains("200")) {
+                    throw new java.io.IOException(
+                            "Proxy CONNECT failed: " + (statusLine != null ? statusLine : "(no response)"));
+                }
+                // Consume remaining response headers
+                String line;
+                while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                    // skip headers
+                }
+
+                // Layer SSL on top of the proxy tunnel
+                try (SSLSocket socket = (SSLSocket) factory.createSocket(tunnel, host, port, true)) {
+                    socket.setSoTimeout(CONNECT_TIMEOUT_MS);
+                    socket.startHandshake();
+                }
+            }
+        } else {
+            // Direct connection (no proxy)
+            try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
+                socket.setSoTimeout(CONNECT_TIMEOUT_MS);
+                socket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+                socket.startHandshake();
+            }
         }
 
         return captured[0];
+    }
+
+    /**
+     * Resolves the proxy to use for a given HTTPS target.
+     * Checks the system properties {@code https.proxyHost} / {@code https.proxyPort}
+     * first, then falls back to the JVM's default {@link ProxySelector}.
+     *
+     * @return A {@link Proxy} of type HTTP, or {@code null} if no proxy is needed
+     */
+    private Proxy resolveProxy(String host, int port) {
+        // 1. Check explicit system properties (most common way to set proxy)
+        String proxyHost = System.getProperty("https.proxyHost");
+        if (proxyHost != null && !proxyHost.isEmpty()) {
+            int proxyPort = 8080;
+            try {
+                proxyPort = Integer.parseInt(System.getProperty("https.proxyPort", "8080"));
+            } catch (NumberFormatException ignored) {
+            }
+            LOGGER.log(Level.FINE, "Resolved proxy from system properties: {0}:{1}",
+                    new Object[]{proxyHost, proxyPort});
+            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+        }
+
+        // 2. Fall back to ProxySelector
+        try {
+            ProxySelector selector = ProxySelector.getDefault();
+            if (selector != null) {
+                URI targetUri = URI.create("https://" + host + ":" + port);
+                List<Proxy> proxies = selector.select(targetUri);
+                for (Proxy p : proxies) {
+                    if (p.type() == Proxy.Type.HTTP) {
+                        LOGGER.log(Level.FINE, "Resolved proxy from ProxySelector: {0}", p);
+                        return p;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "ProxySelector lookup failed", e);
+        }
+
+        return null;
     }
 
     private void loadOrCreateTruststore() {

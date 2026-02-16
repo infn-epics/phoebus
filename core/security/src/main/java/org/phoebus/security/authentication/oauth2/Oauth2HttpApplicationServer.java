@@ -134,7 +134,7 @@ public class Oauth2HttpApplicationServer {
                 + "&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + "/oauth2Callback"
                 + "&client_id=camunda";
 
-        URL url = new URL(tokenUrl);
+        URL url = URI.create(tokenUrl).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
         // If the token endpoint is HTTPS, use the OIDC truststore-backed SSLContext

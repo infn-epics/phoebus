@@ -416,6 +416,12 @@ public class CredentialsManagementController {
 
             sb.append("\n").append(Messages.CertificateTruststorePath).append(": ").append(truststoreFile.getAbsolutePath()).append("\n");
 
+            // Show any pending IDP connection error
+            String idpError = mgr.getLastConnectionError();
+            if (idpError != null) {
+                sb.append("\n⚠ IDP Connection Error: ").append(idpError).append("\n");
+            }
+
             // Show the certificate dialog
             Alert alert = new Alert(Alert.AlertType.NONE);
             alert.setTitle(Messages.ViewCertificates);
@@ -432,15 +438,31 @@ public class CredentialsManagementController {
 
             Button refreshButton = new Button(Messages.RefreshCertificates);
             refreshButton.setOnAction(e -> {
-                boolean success = mgr.refreshCertificates();
-                if (success) {
-                    LOGGER.info("Certificates refreshed successfully");
-                    alert.close();
-                    // Re-open to show updated certs
-                    Platform.runLater(this::viewCertificates);
-                } else {
-                    textArea.appendText("\n⚠ " + Messages.CertificateRefreshFailed + "\n");
-                }
+                refreshButton.setDisable(true);
+                refreshButton.setText("Refreshing...");
+                // Run certificate fetch in a background thread to avoid blocking the FX thread.
+                // OidcTrustStoreManager.acquireCertificates() is synchronized and performs
+                // network I/O (TLS socket connect with timeout), which can deadlock the UI
+                // if another thread already holds the monitor.
+                new Thread(() -> {
+                    boolean success = mgr.refreshCertificates();
+                    Platform.runLater(() -> {
+                        if (success) {
+                            LOGGER.info("Certificates refreshed successfully");
+                            alert.close();
+                            // Re-open to show updated certs
+                            Platform.runLater(this::viewCertificates);
+                        } else {
+                            String error = mgr.getLastConnectionError();
+                            textArea.appendText("\n⚠ " + Messages.CertificateRefreshFailed + "\n");
+                            if (error != null) {
+                                textArea.appendText("   " + error + "\n");
+                            }
+                            refreshButton.setDisable(false);
+                            refreshButton.setText(Messages.RefreshCertificates);
+                        }
+                    });
+                }, "CertRefresh").start();
             });
 
             content.getChildren().addAll(textArea, refreshButton);

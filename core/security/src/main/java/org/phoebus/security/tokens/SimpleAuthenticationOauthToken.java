@@ -6,6 +6,7 @@ import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.managers.OidcTrustStoreManager;
 
 import javax.net.ssl.SSLContext;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,28 +22,45 @@ public class SimpleAuthenticationOauthToken {
 
     private static final Logger LOGGER = Logger.getLogger(SimpleAuthenticationOauthToken.class.getName());
 
+    /** Cached HttpClient instance – reused across calls to avoid thread pool leak. */
+    private static volatile HttpClient sharedClient;
+
     /**
      * Shared HttpClient for OIDC/JWKS requests. Uses the OIDC truststore-backed
      * SSLContext so that the Keycloak server's TLS certificate is properly validated
      * instead of relying on a trust-all approach.
+     * <p>
+     * The client honours the JVM's default {@link ProxySelector} (respecting
+     * {@code https.proxyHost} / {@code https.proxyPort} system properties).
+     * </p>
      */
     private static HttpClient getSharedHttpClient() {
-        SSLContext sslContext;
-        try {
-            sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to get OIDC SSLContext, using JVM default", e);
-            try {
-                sslContext = SSLContext.getDefault();
-            } catch (Exception ex) {
-                throw new RuntimeException("Cannot obtain default SSLContext", ex);
-            }
+        if (sharedClient != null) {
+            return sharedClient;
         }
-        return HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .sslContext(sslContext)
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build();
+        synchronized (SimpleAuthenticationOauthToken.class) {
+            if (sharedClient != null) {
+                return sharedClient;
+            }
+            SSLContext sslContext;
+            try {
+                sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to get OIDC SSLContext, using JVM default", e);
+                try {
+                    sslContext = SSLContext.getDefault();
+                } catch (Exception ex) {
+                    throw new RuntimeException("Cannot obtain default SSLContext", ex);
+                }
+            }
+            sharedClient = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .sslContext(sslContext)
+                    .proxy(ProxySelector.getDefault())
+                    .followRedirects(HttpClient.Redirect.ALWAYS)
+                    .build();
+            return sharedClient;
+        }
     }
 
     private AuthenticationScope scope;
