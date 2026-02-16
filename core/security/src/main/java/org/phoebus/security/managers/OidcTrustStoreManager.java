@@ -383,6 +383,11 @@ public class OidcTrustStoreManager {
      *     <li>The JVM's default trusted CAs (cacerts)</li>
      *     <li>The certificates in our local OIDC truststore</li>
      * </ul>
+     * The resulting context is also installed as the JVM-wide default via
+     * {@link SSLContext#setDefault(SSLContext)} so that <b>all</b> JVM
+     * components that rely on the default SSLContext (including the JavaFX
+     * {@code WebEngine}'s internal {@code HTTP2Loader}) will trust the
+     * OIDC server's certificates without any per-client configuration.
      */
     private SSLContext buildSSLContext() {
         try {
@@ -430,7 +435,13 @@ public class OidcTrustStoreManager {
 
             SSLContext ctx = SSLContext.getInstance("TLS");
             ctx.init(null, new TrustManager[]{compositeTm}, null);
-            LOGGER.log(Level.INFO, "Built composite SSLContext (JVM defaults + OIDC truststore)");
+
+            // Install as JVM-wide default so that components we do not control
+            // (JavaFX WebEngine HTTP2Loader, Tomcat WebSocket client, etc.)
+            // will trust both default CAs and the OIDC server's certificates.
+            SSLContext.setDefault(ctx);
+            LOGGER.log(Level.INFO,
+                    "Built composite SSLContext (JVM defaults + OIDC truststore) and set as JVM default");
             return ctx;
 
         } catch (Exception e) {
