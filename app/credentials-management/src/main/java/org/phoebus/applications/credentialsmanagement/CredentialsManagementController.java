@@ -58,6 +58,8 @@ import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -284,15 +286,24 @@ public class CredentialsManagementController {
     public void loginWithOAuth2() {
         try {
             if (oauthLoggedIn.get()) {
+
+                SecureStore store = new SecureStore();
+                String idToken = store.get(SecureStore.JWT_ID_TOKEN);
                 String logoutUrl = PhoebusSecurity.oauth2_auth_url + "/realms/" + PhoebusSecurity.oauth2_realm
-                        + "/protocol/openid-connect/logout"
-                        + "?id_token_hint=" + secureStore.get(SecureStore.JWT_ID_TOKEN)
-                        + "&post_logout_redirect_uri=";
+                        + "/protocol/openid-connect/logout";
+
+                // Costruisci i parametri in base alla disponibilità dell'id token
+                if (idToken != null && !idToken.isEmpty()) {
+                    logoutUrl += "?id_token_hint=" + idToken;
+                } else {
+                    logoutUrl += "?client_id=" + PhoebusSecurity.oauth2_client_id;
+                }
 
                 URL url = new URL(logoutUrl);
                 HttpURLConnection con = (HttpURLConnection) url.openConnection();
                 con.setRequestMethod("GET");
-                con.setDoOutput(true);
+                con.setConnectTimeout(5000);
+                con.setReadTimeout(5000);
                 int responseCode = con.getResponseCode();
                 LOGGER.info("OAuth2 logout response code: " + responseCode);
                 con.disconnect();
@@ -300,12 +311,16 @@ public class CredentialsManagementController {
                 oauthLoggedIn.set(false);
                 secureStore.delete(SecureStore.JWT_ID_TOKEN);
                 secureStore.delete(SecureStore.JWT_TOKEN_TAG);
+
             } else {
-                String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
+                String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port
+                        + PhoebusSecurity.oauth2_callback;
                 String authUrl = PhoebusSecurity.oauth2_auth_url + "/realms/" + PhoebusSecurity.oauth2_realm
-                        + "/protocol/openid-connect/auth?response_type=code&client_id="
-                        + PhoebusSecurity.oauth2_client_id
-                        + "&scope=openid%20email&redirect_uri=" + redirectUri;
+                        + "/protocol/openid-connect/auth"
+                        + "?response_type=code"
+                        + "&client_id=" + PhoebusSecurity.oauth2_client_id
+                        + "&scope=openid%20email"
+                        + "&redirect_uri=" + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
 
                 OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn, stage);
             }
@@ -663,6 +678,8 @@ public class CredentialsManagementController {
                                     SecureStore store = new SecureStore();
                                     store.set(SecureStore.JWT_TOKEN_TAG, tokenResponse.getAsString("access_token"));
                                     store.set(SecureStore.JWT_ID_TOKEN, tokenResponse.getAsString("id_token"));
+                                    LOGGER.log(Level.INFO, "Stored id_token: {0}", store.get(SecureStore.JWT_ID_TOKEN));
+
                                     LOGGER.info("OAuth2 token stored successfully");
                                 } else {
                                     LOGGER.warning("Oauth2HttpApplicationServer not available, trying direct exchange");
