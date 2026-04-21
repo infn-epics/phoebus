@@ -19,12 +19,15 @@
 package org.phoebus.service.saveandrestore.web.config;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import net.minidev.json.JSONValue;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.phoebus.security.managers.OidcTrustStoreManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -42,6 +45,11 @@ import javax.annotation.PostConstruct;
 import javax.net.ssl.SSLContext;
 import java.io.FileInputStream;
 import java.math.BigInteger;
+import java.net.ProxySelector;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.interfaces.RSAPublicKey;
@@ -65,15 +73,22 @@ import java.util.logging.Logger;
 @ConditionalOnProperty(name = "oauth2.enabled", havingValue = "true")
 public class JwtAuthenticationProvider implements AuthenticationProvider {
 
+    // Cached HttpClient instance – reused across calls to avoid thread pool leak.
     private static final Logger logger = Logger.getLogger(JwtAuthenticationProvider.class.getName());
 
     @Value("${oauth2.issueUri}")
     private String issuerUri;
 
+    @Value("${oauth2.realm}")
+    private String oauth2Realm;
+
     @Value("${oauth2.claimsName:name}")
     private String claimsName;
 
     private RestTemplate restTemplate;
+
+    private static volatile HttpClient sharedClient;
+
 
     /**
      * Build a RestTemplate that trusts the JVM truststore (if set via
@@ -141,8 +156,19 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
 
         try {
             logger.log(Level.INFO, "Attempting JWT authentication against issuer: {0}", issuerUri);
+            // Extract kid
+            String kid = null;
+            try {
+                String headerJson = new String(Base64.getUrlDecoder().decode(jwtToken.split("\\.")[0]));
+                Map<String, Object> header = (Map<String, Object>) JSONValue.parse(headerJson);
+                kid = (String) header.get("kid");
+                logger.log(Level.INFO, "JWT kid: {0}", kid);
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Could not extract kid from JWT header, will use first available key");
+            }
 
-            RSAPublicKey publicKey = fetchPublicKey();
+            RSAPublicKey publicKey = fetchPublicKey(kid);
+
             logger.log(Level.FINE, "Successfully fetched public key from OIDC provider");
 
             Claims claims = Jwts.parserBuilder()
@@ -172,7 +198,12 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
 
         } catch (AuthenticationException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (ExpiredJwtException e){
+            logger.log(Level.SEVERE, "JWT authentication failed: " + e.getMessage(), e);
+            throw new InternalAuthenticationServiceException("Token expired: please login again", e);
+
+        }
+        catch (Exception e) {
             logger.log(Level.SEVERE, "JWT authentication failed: " + e.getMessage(), e);
             throw new InternalAuthenticationServiceException("Invalid JWT token: " + e.getMessage(), e);
         }
@@ -183,34 +214,86 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
         return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
     }
 
+
+    /**
+     * Shared HttpClient for OIDC/JWKS requests. Uses the OIDC truststore-backed
+     * SSLContext so that the Keycloak server's TLS certificate is properly validated
+     * instead of relying on a trust-all approach.
+     * <p>
+     * The client honours the JVM's default {@link ProxySelector} (respecting
+     * {@code https.proxyHost} / {@code https.proxyPort} system properties).
+     * </p>
+     */
+    private static HttpClient getSharedHttpClient() {
+        if (sharedClient != null) {
+            return sharedClient;
+        }
+        synchronized (JwtAuthenticationProvider.class) {
+            if (sharedClient != null) {
+                return sharedClient;
+            }
+            SSLContext sslContext;
+            try {
+                sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to get OIDC SSLContext, using JVM default", e);
+                try {
+                    sslContext = SSLContext.getDefault();
+                } catch (Exception ex) {
+                    throw new RuntimeException("Cannot obtain default SSLContext", ex);
+                }
+            }
+            sharedClient = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .sslContext(sslContext)
+                    .proxy(ProxySelector.getDefault())
+                    .followRedirects(HttpClient.Redirect.ALWAYS)
+                    .build();
+            return sharedClient;
+        }
+    }
+
     /**
      * Download the public key from the OIDC server.
      */
-    @SuppressWarnings("unchecked")
-    private RSAPublicKey fetchPublicKey() {
+    private RSAPublicKey fetchPublicKey(String kid) {
         try {
-            // Get the OIDC configuration document
-            String oidcUrl = issuerUri + "/.well-known/openid-configuration";
-            logger.log(Level.FINE, "Fetching OIDC configuration from: {0}", oidcUrl);
-            Map<String, Object> oidcConfig = restTemplate.getForObject(oidcUrl, Map.class);
+            HttpRequest request =
+                    HttpRequest
+                            .newBuilder()
+                            .uri(URI.create(issuerUri + "/.well-known/openid-configuration"))
+                            .GET()
+                            .build();
+
+            HttpResponse<String> response = getSharedHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            Map<String, Object> oidcConfig = (Map<String, Object>) JSONValue.parse(response.body());
             if (oidcConfig == null) {
-                throw new RuntimeException("Failed to fetch OIDC configuration from: " + oidcUrl);
+                throw new RuntimeException("Failed to fetch OIDC configuration");
             }
             String jwksUri = (String) oidcConfig.get("jwks_uri");
-            logger.log(Level.FINE, "Fetching JWKS from: {0}", jwksUri);
 
-            // Obtain the JSON Web Key Set (JWKS) from the OIDC server
-            Map<String, Object> jwks = restTemplate.getForObject(jwksUri, Map.class);
+            request =
+                    HttpRequest
+                            .newBuilder()
+                            .uri(URI.create(jwksUri))
+                            .GET()
+                            .build();
+
+            response = getSharedHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            Map<String, Object> jwks = (Map<String, Object>) JSONValue.parse(response.body());
             List<Map<String, Object>> keys = (List<Map<String, Object>>) jwks.get("keys");
 
-            // Get the first RSA key
-            Map<String, Object> key = keys.get(0);
-            String kid = (String) key.get("kid");
-            logger.log(Level.FINE, "Using JWKS key with kid: {0}", kid);
+            // Seleziona la chiave corrispondente al kid, altrimenti usa la prima
+            Map<String, Object> key = keys.stream()
+                    .filter(k -> kid == null || kid.equals(k.get("kid")))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("No matching key found for kid: " + kid));
+
             String modulusBase64 = (String) key.get("n");
             String exponentBase64 = (String) key.get("e");
 
-            // Convert the base64url-encoded modulus and exponent to RSA public key
             byte[] modulusBytes = Base64.getUrlDecoder().decode(modulusBase64);
             byte[] exponentBytes = Base64.getUrlDecoder().decode(exponentBase64);
 
@@ -221,8 +304,52 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
                     .generatePublic(new RSAPublicKeySpec(modulus, exponent));
 
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to fetch public key from OIDC provider at " + issuerUri + ": " + e.getMessage(), e);
+            logger.log(Level.SEVERE, "Failed to fetch or parse public key from OIDC provider", e);
             throw new RuntimeException("Failed to fetch or parse public key from OIDC provider", e);
         }
     }
+
+
+//    /**
+//     * Download the public key from the OIDC server.
+//     */
+//    @SuppressWarnings("unchecked")
+//    private RSAPublicKey fetchPublicKey() {
+//        try {
+//            // Get the OIDC configuration document
+//            String oidcUrl = issuerUri + "/.well-known/openid-configuration";
+//            logger.log(Level.FINE, "Fetching OIDC configuration from: {0}", oidcUrl);
+//            Map<String, Object> oidcConfig = restTemplate.getForObject(oidcUrl, Map.class);
+//            if (oidcConfig == null) {
+//                throw new RuntimeException("Failed to fetch OIDC configuration from: " + oidcUrl);
+//            }
+//            String jwksUri = (String) oidcConfig.get("jwks_uri");
+//            logger.log(Level.FINE, "Fetching JWKS from: {0}", jwksUri);
+//
+//            // Obtain the JSON Web Key Set (JWKS) from the OIDC server
+//            Map<String, Object> jwks = restTemplate.getForObject(jwksUri, Map.class);
+//            List<Map<String, Object>> keys = (List<Map<String, Object>>) jwks.get("keys");
+//
+//            // Get the first RSA key
+//            Map<String, Object> key = keys.get(0);
+//            String kid = (String) key.get("kid");
+//            logger.log(Level.FINE, "Using JWKS key with kid: {0}", kid);
+//            String modulusBase64 = (String) key.get("n");
+//            String exponentBase64 = (String) key.get("e");
+//
+//            // Convert the base64url-encoded modulus and exponent to RSA public key
+//            byte[] modulusBytes = Base64.getUrlDecoder().decode(modulusBase64);
+//            byte[] exponentBytes = Base64.getUrlDecoder().decode(exponentBase64);
+//
+//            BigInteger modulus = new BigInteger(1, modulusBytes);
+//            BigInteger exponent = new BigInteger(1, exponentBytes);
+//
+//            return (RSAPublicKey) KeyFactory.getInstance("RSA")
+//                    .generatePublic(new RSAPublicKeySpec(modulus, exponent));
+//
+//        } catch (Exception e) {
+//            logger.log(Level.SEVERE, "Failed to fetch public key from OIDC provider at " + issuerUri + ": " + e.getMessage(), e);
+//            throw new RuntimeException("Failed to fetch or parse public key from OIDC provider", e);
+//        }
+//    }
 }
