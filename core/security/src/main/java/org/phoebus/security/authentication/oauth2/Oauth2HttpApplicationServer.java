@@ -132,7 +132,7 @@ public class Oauth2HttpApplicationServer {
                 + "&code=" + authCode
                 + "&scope=openid"
                 + "&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + "/oauth2Callback"
-                + "&client_id=camunda";
+                + "&client_id=" + PhoebusSecurity.oauth2_client_id;
 
         URL url = URI.create(tokenUrl).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();

@@ -68,7 +68,7 @@ import static java.lang.Thread.sleep;
 /**
  * Logbook client implementation using Java native APIs only. Implemented as singleton.
  */
-public class OlogHttpClient implements LogClient {
+    public class OlogHttpClient implements LogClient {
 
     private final HttpClient httpClient;
     private static final ObjectMapper OBJECT_MAPPER;
@@ -76,6 +76,11 @@ public class OlogHttpClient implements LogClient {
     private static final String OLOG_CLIENT_INFO_HEADER = "X-Olog-Client-Info";
     private static final String CLIENT_INFO =
             "CS Studio " + Messages.AppVersion + " on " + System.getProperty("os.name");
+    /**
+     * Each endpoint needs this as by default the service's context path is /, but all
+     * API endpoints are prefixed with <code>Olog</code>.
+     */
+    public static final String OLOG_PREFIX = "/Olog";
 
     private static final Logger LOGGER = Logger.getLogger(OlogHttpClient.class.getName());
     private final List<LogEntryChangeHandler> changeHandlers = new ArrayList<>();
@@ -406,7 +411,7 @@ public class OlogHttpClient implements LogClient {
                 if (attachment.getFile() != null
                         && attachment.getFile().exists()
                         && attachment.getFile().canRead()) {
-                    httpRequestMultipartBody.addFilePart(attachment.getFile());
+                    httpRequestMultipartBody.addFilePart(attachment.getFile(), attachment.getUniqueFilename());
                 }
             }
 

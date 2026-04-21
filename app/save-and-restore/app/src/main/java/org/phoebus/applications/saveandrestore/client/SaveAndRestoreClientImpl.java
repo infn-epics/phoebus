@@ -31,6 +31,7 @@ import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.util.http.QueryParamsHelper;
 
+import javax.naming.AuthenticationException;
 import javax.ws.rs.core.MultivaluedMap;
 import java.net.ConnectException;
 import java.net.CookieHandler;
@@ -130,7 +131,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
                     return "Bearer " + jwtToken;
                 }
                 LOGGER.log(Level.FINE, "Auth mode is oauth2 but no JWT token available");
-                return null;
+                throw new AuthenticationException("Login to retrieve JWT token");
             }
 
             // Manual mode (default): per-service Basic credentials first
@@ -148,8 +149,13 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
                 LOGGER.log(Level.FINE, "Using global JWT Bearer token for save-and-restore (manual fallback)");
                 return "Bearer " + jwtToken;
             }
-        } catch (Exception e) {
+        } catch (AuthenticationException e){
+            LOGGER.log(Level.WARNING, "Authentication token", e);
+            throw new SaveAndRestoreClientException("JWT token not available. Please login to retrieve it.");
+        }
+        catch (Exception e) {
             LOGGER.log(Level.WARNING, "Unable to retrieve credentials from secure store", e);
+            throw new SaveAndRestoreClientException("Unable to retrieve credentials from secure store");
         }
         return null;
     }
