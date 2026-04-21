@@ -110,13 +110,17 @@ public class OidcTrustStoreManager {
      */
     public synchronized SSLContext getSSLContext() {
         if (sslContext == null) {
-            // If truststore has no entries, try to acquire certs now
             try {
-                if (truststore.size() == 0) {
-                    String oidcUrl = buildOidcUrl();
-                    if (oidcUrl != null) {
-                        acquireCertificates(oidcUrl);
-                    }
+                String oidcUrl = buildOidcUrl();
+                // Se l'IDP usa HTTP plain, non serve acquisire certificati TLS
+                if (oidcUrl != null && oidcUrl.toLowerCase().startsWith("http://")) {
+                    LOGGER.log(Level.INFO, "OIDC server uses plain HTTP, skipping certificate acquisition");
+                    sslContext = SSLContext.getDefault();
+                    SSLContext.setDefault(sslContext);
+                    return sslContext;
+                }
+                if (truststore.size() == 0 && oidcUrl != null) {
+                    acquireCertificates(oidcUrl);
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Truststore size check failed", e);
@@ -135,6 +139,12 @@ public class OidcTrustStoreManager {
      * @return {@code true} if certificates were successfully acquired and stored
      */
     public synchronized boolean acquireCertificates(String httpsUrl) {
+        // Nessun certificato da acquisire se non è HTTPS
+        if (httpsUrl == null || !httpsUrl.toLowerCase().startsWith("https://")) {
+            LOGGER.log(Level.INFO, "Skipping certificate acquisition for non-HTTPS URL: {0}", httpsUrl);
+            lastConnectionError = null;
+            return true; // Non è un errore, semplicemente non applicabile
+        }
         try {
             URI uri = URI.create(httpsUrl);
             String host = uri.getHost();

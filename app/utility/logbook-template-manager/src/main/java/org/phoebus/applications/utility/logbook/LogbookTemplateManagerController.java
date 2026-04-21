@@ -139,9 +139,9 @@ public class LogbookTemplateManagerController {
                 new SimpleStringProperty(cd.getValue().getName()));
         propertyOwnerCol.setCellValueFactory(cd -> {
             // OlogProperty stores owner internally
-            if (cd.getValue() instanceof OlogProperty op) {
-                return new SimpleStringProperty(op.getOwner() != null ? op.getOwner() : "");
-            }
+//            if (cd.getValue() instanceof OlogProperty op) {
+//                return new SimpleStringProperty(op.getOwner() != null ? op.getOwner() : "");
+//            }
             return new SimpleStringProperty("");
         });
         propertyAttrsCol.setCellValueFactory(cd -> {
@@ -297,8 +297,7 @@ public class LogbookTemplateManagerController {
             List<String> attrNames = prop.getAttributes() != null
                     ? new ArrayList<>(prop.getAttributes().keySet())
                     : List.of();
-            client.createPropertyWithAttributes(prop.getName(),
-                    prop.getOwner() != null ? prop.getOwner() : "olog-logs",
+            client.createPropertyWithAttributes(prop.getName(), "olog-logs",
                     attrNames);
             count++;
         }
