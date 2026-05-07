@@ -18,10 +18,12 @@ import org.phoebus.olog.es.api.model.OlogLogbook;
 import org.phoebus.olog.es.api.model.OlogObjectMappers;
 import org.phoebus.olog.es.api.model.OlogProperty;
 import org.phoebus.olog.es.api.model.OlogTag;
+import org.phoebus.security.managers.OidcTrustStoreManager;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.applications.logbook.authentication.OlogAuthenticationScope;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -64,6 +66,8 @@ public class OlogAdminClient {
     private volatile String authHeader;
 
     public OlogAdminClient() {
+        initializeTlsTrustForOlogEndpoint();
+
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .executor(Executors.newCachedThreadPool())
@@ -77,6 +81,28 @@ public class OlogAdminClient {
 
         // Try to obtain credentials from the secure store
         resolveAuth();
+    }
+
+    /**
+     * Ensure HTTPS certificates for the configured Olog endpoint are present in
+     * the Phoebus truststore so internal/self-signed deployments can connect.
+     */
+    private void initializeTlsTrustForOlogEndpoint() {
+        String ologUrl = baseUrl();
+        if (ologUrl == null || !ologUrl.toLowerCase().startsWith("https://")) {
+            return;
+        }
+
+        try {
+            boolean acquired = OidcTrustStoreManager.getInstance().acquireCertificates(ologUrl);
+            if (!acquired) {
+                String error = OidcTrustStoreManager.getInstance().getLastConnectionError();
+                LOGGER.log(Level.WARNING, "Could not acquire TLS certificates for Olog endpoint {0}: {1}",
+                        new Object[]{ologUrl, error});
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to initialize TLS trust for Olog endpoint: " + ologUrl, e);
+        }
     }
 
     /**
@@ -128,6 +154,23 @@ public class OlogAdminClient {
 
     private String baseUrl() {
         return Preferences.olog_url;
+    }
+
+    private HttpResponse<String> sendWithTlsRetry(HttpRequest request, String operation) throws Exception {
+        try {
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (SSLHandshakeException sslEx) {
+            String ologUrl = baseUrl();
+            if (ologUrl == null || !ologUrl.toLowerCase().startsWith("https://")) {
+                throw sslEx;
+            }
+
+            LOGGER.log(Level.WARNING,
+                    "TLS handshake failed during {0}. Refreshing Olog certificates and retrying once.",
+                    operation);
+            initializeTlsTrustForOlogEndpoint();
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        }
     }
 
     // ========== LOGBOOKS ==========
@@ -265,7 +308,7 @@ public class OlogAdminClient {
                 .header("Authorization", authHeader)
                 .PUT(HttpRequest.BodyPublishers.ofString(json))
                 .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = sendWithTlsRetry(request, "create template");
         checkResponse(response, "create template");
         return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), LogTemplate.class);
     }
