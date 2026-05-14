@@ -76,6 +76,7 @@ import org.phoebus.framework.autocomplete.ProposalProvider;
 import org.phoebus.framework.autocomplete.ProposalService;
 import org.phoebus.framework.jobs.JobManager;
 import org.phoebus.framework.selection.SelectionService;
+import org.phoebus.logbook.Attachment;
 import org.phoebus.logbook.LogClient;
 import org.phoebus.logbook.LogEntry;
 import org.phoebus.logbook.LogEntryLevel;
@@ -89,6 +90,7 @@ import org.phoebus.logbook.Tag;
 import org.phoebus.logbook.olog.ui.HelpViewer;
 import org.phoebus.logbook.olog.ui.Messages;
 import org.phoebus.logbook.olog.ui.PreviewViewer;
+import org.phoebus.olog.es.api.model.OlogAttachment;
 import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
@@ -335,7 +337,18 @@ public class LogEntryEditorController {
                         completionMessageLabel.textProperty(), submissionInProgress));
 
         cancelButton.disableProperty().bind(submissionInProgress);
+
+        // Ensure fallback attachments from LogEntry are present in the editor controller
         attachmentsEditorController.setTextArea(textArea);
+        Collection<org.phoebus.logbook.Attachment> logEntryAttachments = logEntry.getAttachments();
+        Logger.getLogger(LogEntryEditorController.class.getName()).info("[DEBUG] LogEntryEditorController.initialize: LogEntry attachments=" + (logEntryAttachments == null ? "null" : logEntryAttachments.size()));
+        Logger.getLogger(LogEntryEditorController.class.getName()).info("[DEBUG] LogEntryEditorController.initialize: AttachmentsEditorController.attachments=" + attachmentsEditorController.getAttachments().size());
+        if (logEntryAttachments != null && !logEntryAttachments.isEmpty()) {
+            if (attachmentsEditorController.getAttachments().isEmpty()) {
+                attachmentsEditorController.getAttachments().addAll(logEntryAttachments);
+                Logger.getLogger(LogEntryEditorController.class.getName()).info("[DEBUG] LogEntryEditorController.initialize: Attachments copied to controller: " + attachmentsEditorController.getAttachments().size());
+            }
+        }
 
         userField.textProperty().bindBidirectional(usernameProperty);
         userField.textProperty().addListener((changeListener, oldVal, newVal) ->
@@ -741,6 +754,8 @@ public class LogEntryEditorController {
     @SuppressWarnings("unused")
     public void submit() {
 
+
+        Logger.getLogger(LogEntryEditorController.class.getName()).info("[DEBUG] LogEntryEditorController.submit: Attachments at submit=" + attachmentsEditorController.getAttachments().size());
         submissionInProgress.set(true);
 
         JobManager.schedule("Submit Log Entry", monitor -> {
@@ -750,7 +765,9 @@ public class LogEntryEditorController {
             ologLog.setLevel(selectedLevelProperty.get());
             ologLog.setLogbooks(getSelectedLogbooks());
             ologLog.setTags(getSelectedTags());
-            ologLog.setAttachments(attachmentsEditorController.getAttachments());
+            List<Attachment> normalizedAttachments = normalizeAttachmentsForSubmit(attachmentsEditorController.getAttachments());
+            logger.log(Level.INFO, "[DEBUG] Normalized attachments at submit=" + normalizedAttachments.size());
+            ologLog.setAttachments(normalizedAttachments);
             if (editMode.equals(EditMode.UPDATE_LOG_ENTRY)) {
                 ologLog.setId(logEntry.getId());
             }
@@ -837,6 +854,52 @@ public class LogEntryEditorController {
             }
             submissionInProgress.set(false);
         });
+    }
+
+    private List<Attachment> normalizeAttachmentsForSubmit(Collection<Attachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Attachment> normalized = new ArrayList<>();
+        for (Attachment attachment : attachments) {
+            if (attachment == null) {
+                continue;
+            }
+
+            OlogAttachment ologAttachment = new OlogAttachment(
+                    attachment.getId() != null && !attachment.getId().isBlank()
+                            ? attachment.getId()
+                            : java.util.UUID.randomUUID().toString());
+            ologAttachment.setFile(attachment.getFile());
+
+            String uniqueFilename = attachment.getUniqueFilename();
+            if ((uniqueFilename == null || uniqueFilename.isBlank()) && attachment.getFile() != null) {
+                uniqueFilename = attachment.getFile().getName();
+            }
+            if ((uniqueFilename == null || uniqueFilename.isBlank()) && attachment.getName() != null) {
+                uniqueFilename = attachment.getName();
+            }
+            ologAttachment.setUniqueFilename(uniqueFilename);
+
+            String contentType = attachment.getContentType();
+            if (contentType == null || contentType.isBlank()) {
+                if (attachment.getFile() != null) {
+                    String lower = attachment.getFile().getName().toLowerCase();
+                    contentType = (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+                            || lower.endsWith(".gif") || lower.endsWith(".bmp") || lower.endsWith(".webp"))
+                            ? "image"
+                            : "file";
+                } else {
+                    contentType = "file";
+                }
+            }
+            ologAttachment.setContentType(contentType);
+            ologAttachment.setThumbnail(false);
+
+            normalized.add(ologAttachment);
+        }
+        return normalized;
     }
 
     @FXML

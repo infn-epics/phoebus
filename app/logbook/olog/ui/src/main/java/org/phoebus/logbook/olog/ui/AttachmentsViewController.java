@@ -232,13 +232,18 @@ public class AttachmentsViewController {
     }
 
     public void setAttachments(Collection<Attachment> attachmentsList) {
-        Platform.runLater(() -> {
+        Runnable update = () -> {
             this.attachments.setAll(attachmentsList);
             // Update UI
             if (!this.attachments.isEmpty()) {
                 attachmentListView.getSelectionModel().select(this.attachments.get(0));
             }
-        });
+        };
+        if (Platform.isFxApplicationThread()) {
+            update.run();
+        } else {
+            Platform.runLater(update);
+        }
     }
 
     private static class AttachmentRow extends ListCell<Attachment> {
@@ -339,10 +344,15 @@ public class AttachmentsViewController {
      * @param attachmentsList The new {@link Attachment}s
      */
     public void addAttachments(List<Attachment> attachmentsList) {
-        Platform.runLater(() -> {
+        Runnable update = () -> {
             attachmentListView.getSelectionModel().clearSelection();
             attachments.addAll(attachmentsList);
             attachmentListView.getSelectionModel().select(attachmentsList.get(0));
-        });
+        };
+        if (Platform.isFxApplicationThread()) {
+            update.run();
+        } else {
+            Platform.runLater(update);
+        }
     }
 }

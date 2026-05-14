@@ -12,20 +12,19 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import org.phoebus.framework.jobs.JobManager;
 import org.phoebus.logbook.Attachment;
-import org.phoebus.logbook.AttachmentImpl;
 import org.phoebus.logbook.LogbookPreferences;
 import org.phoebus.logbook.olog.ui.LogbookAvailabilityChecker;
 import org.phoebus.logbook.olog.ui.write.LogEntryEditorStage;
+import org.phoebus.olog.es.api.model.OlogAttachment;
 import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.ui.javafx.ImageCache;
 import org.phoebus.ui.javafx.Screenshot;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 
 import static org.phoebus.logbook.LogService.logger;
 
@@ -78,14 +77,14 @@ public class SendLogbookAction extends MenuItem {
         ologLog.setDescription(body != null ? body : "");
 
         if (image_file != null) {
-            try {
-                final Attachment attachment = AttachmentImpl.of(image_file, "image", false);
-                List<Attachment> attachments = new ArrayList<>();
-                attachments.add(attachment);
-                ologLog.setAttachments(attachments);
-            } catch (FileNotFoundException ex) {
-                logger.log(Level.WARNING, "Cannot attach " + image_file, ex);
-            }
+            OlogAttachment attachment = new OlogAttachment(UUID.randomUUID().toString());
+            attachment.setFile(image_file);
+            attachment.setContentType("image");
+            attachment.setThumbnail(false);
+            attachment.setUniqueFilename(image_file.getName());
+            List<Attachment> attachments = new ArrayList<>();
+            attachments.add(attachment);
+            ologLog.setAttachments(attachments);
         }
         new LogEntryEditorStage(ologLog).show();
     }

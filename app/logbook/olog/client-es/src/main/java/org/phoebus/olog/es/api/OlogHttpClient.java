@@ -38,6 +38,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
+import java.io.File;
 import java.io.InputStream;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -272,7 +274,15 @@ import static java.lang.Thread.sleep;
             httpRequestMultipartBody.addTextPart("logEntry", OlogObjectMappers.logEntrySerializer.writeValueAsString(log), "application/json");
 
             for (Attachment attachment : log.getAttachments()) {
-                httpRequestMultipartBody.addFilePart(attachment.getFile(), attachment.getUniqueFilename());
+                // Defensive checks: ensure attachment file is valid before adding to multipart request
+                if (attachment.getFile() != null && attachment.getFile().exists() && attachment.getFile().canRead()) {
+                    String uploadFilename = resolveUploadFilename(attachment);
+                    httpRequestMultipartBody.addFilePart(attachment.getFile(), uploadFilename);
+                    LOGGER.log(Level.FINE, "Added attachment: " + uploadFilename + " (" + attachment.getFile().length() + " bytes)");
+                } else {
+                    String issue = attachment.getFile() == null ? "file is null" : (attachment.getFile().exists() ? "not readable" : "does not exist");
+                    LOGGER.log(Level.WARNING, "Skipping attachment " + attachment.getUniqueFilename() + ": " + issue);
+                }
             }
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -322,13 +332,19 @@ import static java.lang.Thread.sleep;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(Preferences.olog_url + "/logs/" + logId))
                 .header("Content-Type", CONTENT_TYPE_JSON)
+                .header("Authorization", basicAuthenticationHeader)
                 .GET()
                 .build();
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                LOGGER.log(Level.WARNING, "Failed to retrieve log entry " + logId + ": HTTP " + response.statusCode());
+                return null;
+            }
             return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
         } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to retrieve log entry " + logId, e);
             return null;
         }
     }
@@ -411,7 +427,7 @@ import static java.lang.Thread.sleep;
                 if (attachment.getFile() != null
                         && attachment.getFile().exists()
                         && attachment.getFile().canRead()) {
-                    httpRequestMultipartBody.addFilePart(attachment.getFile(), attachment.getUniqueFilename());
+                    httpRequestMultipartBody.addFilePart(attachment.getFile(), resolveUploadFilename(attachment));
                 }
             }
 
@@ -446,6 +462,20 @@ import static java.lang.Thread.sleep;
         MultivaluedMap<String, String> mMap = new MultivaluedHashMap<>();
         map.forEach(mMap::putSingle);
         return findLogs(mMap);
+    }
+
+    private String resolveUploadFilename(Attachment attachment) {
+        String uniqueFilename = attachment.getUniqueFilename();
+        if (uniqueFilename != null && !uniqueFilename.isBlank()) {
+            return uniqueFilename;
+        }
+
+        File file = attachment.getFile();
+        String originalName = file != null ? file.getName() : attachment.getName();
+        if (originalName == null || originalName.isBlank()) {
+            originalName = "attachment";
+        }
+        return UUID.randomUUID() + "_" + originalName;
     }
 
     /**
@@ -600,16 +630,17 @@ import static java.lang.Thread.sleep;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.olog_url + "/logs/attachments/" + logId + "/" +
                             URLEncoder.encode(attachmentName, StandardCharsets.UTF_8).replace("+", "%20"))) // + char does not work in path element!
+                    .header("Authorization", basicAuthenticationHeader)
                     .GET()
                     .build();
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             if(response.statusCode() >= 300) {
-                LOGGER.log(Level.WARNING, "failed to obtain attachment: " + new String(response.body().readAllBytes()));
+                LOGGER.log(Level.WARNING, "Failed to obtain attachment " + attachmentName + " for log " + logId + ": HTTP " + response.statusCode());
                 return null;
             }
             return response.body();
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "failed to obtain attachment", e);
+            LOGGER.log(Level.WARNING, "Failed to obtain attachment " + attachmentName + " for log " + logId, e);
             return null;
         }
     }

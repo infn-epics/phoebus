@@ -1,11 +1,11 @@
 package org.phoebus.logbook.olog.ui.adapters;
 
 import org.phoebus.framework.adapter.AdapterFactory;
-import org.phoebus.logbook.AttachmentImpl;
 import org.phoebus.logbook.LogEntry;
 import org.phoebus.logbook.LogEntryImpl.LogEntryBuilder;
 import org.phoebus.logbook.LogbookPreferences;
 import org.phoebus.logbook.olog.ui.LogbookUIPreferences;
+import org.phoebus.olog.es.api.model.OlogAttachment;
 import org.phoebus.ui.javafx.Screenshot;
 import org.phoebus.ui.selection.AppSelection;
 
@@ -13,6 +13,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import static org.phoebus.logbook.LogEntryImpl.LogEntryBuilder.log;
@@ -49,7 +50,12 @@ public class AppSelectionAdapterFactory implements AdapterFactory {
                 final File image_file = selectionInfo.getImage().get() == null ? null : new Screenshot(selectionInfo.getImage().get()).writeToTempfile("image");
                 if(image_file != null)
                 {
-                    log.attach(AttachmentImpl.of(image_file));
+                    OlogAttachment attachment = new OlogAttachment(UUID.randomUUID().toString());
+                    attachment.setFile(image_file);
+                    attachment.setContentType("image");
+                    attachment.setThumbnail(false);
+                    attachment.setUniqueFilename(image_file.getName());
+                    log.attach(attachment);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
