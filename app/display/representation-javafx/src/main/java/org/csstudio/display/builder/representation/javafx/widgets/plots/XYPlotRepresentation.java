@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2015-2022 Oak Ridge National Laboratory.
+ * Copyright (c) 2015-2026 Oak Ridge National Laboratory.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -682,7 +682,7 @@ public class XYPlotRepresentation extends RegionBaseRepresentation<Pane, XYPlotW
         plot_axis.setScaleFont(JFXUtil.convert(model_axis.scaleFont().getValue()));
         plot_axis.setVisible(model_axis.visible().getValue());
         if(plot_axis instanceof YAxisImpl) {
-            ((YAxisImpl)plot_axis).setGridColor(
+            ((YAxisImpl<?>)plot_axis).setGridColor(
                     GraphicsUtils.convert(
                             JFXUtil.convert(
                                     ((YAxisWidgetProperty) model_axis).color().getValue()
@@ -719,18 +719,9 @@ public class XYPlotRepresentation extends RegionBaseRepresentation<Pane, XYPlotW
             plot_axis.setAutoscale(true);
         }
         else
-        {   // No auto-scale requested.
-            if (plot_axis.setAutoscale(false))
-            {   // Autoscale was on.
-                // Turn off, and update model to the last range used by the plot
-                final AxisRange<Double> range = plot_axis.getValueRange();
-                changing_range = true;
-                model_axis.minimum().setValue(range.getLow());
-                model_axis.maximum().setValue(range.getHigh());
-                changing_range = false;
-            }
-            else
-                plot_axis.setValueRange(model_axis.minimum().getValue(), model_axis.maximum().getValue());
+        {   // No auto-scale requested. Apply axis range from model to plot
+            plot_axis.setAutoscale(false);
+            plot_axis.setValueRange(model_axis.minimum().getValue(), model_axis.maximum().getValue());
         }
     }
 

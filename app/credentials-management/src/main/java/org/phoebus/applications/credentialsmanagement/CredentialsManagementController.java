@@ -34,18 +34,7 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
-import javafx.scene.control.Tooltip;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
@@ -132,7 +121,7 @@ public class CredentialsManagementController {
     private final IntegerProperty loggedInCount = new SimpleIntegerProperty(0);
     private final SimpleBooleanProperty oauthLoggedIn = new SimpleBooleanProperty(false);
 
-    private Stage stage;
+    private Dialog dialog;
 
     public CredentialsManagementController(List<ServiceAuthenticationProvider> authenticationProviders, SecureStore secureStore) {
         this.authenticationProviders = authenticationProviders;
@@ -304,7 +293,7 @@ public class CredentialsManagementController {
                 login(serviceItem, tableView.getItems().size());
             }
             if (loggedInCount.get() == tableView.getItems().size()) {
-                stage.close();
+                dialog.close();
             }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to login to all services", e);
@@ -338,7 +327,7 @@ public class CredentialsManagementController {
                         + PhoebusSecurity.oauth2_client_id
                         + "&scope=openid%20email&redirect_uri=" + redirectUri;
 
-                OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn, stage);
+                OAuth2Browser.openInNewStage(authUrl, redirectUri, oauthLoggedIn);
             }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "OAuth2 login/logout failed", e);
@@ -483,7 +472,7 @@ public class CredentialsManagementController {
         if (authenticationResult.equals(AuthenticationStatus.AUTHENTICATED)) {
             loggedInCount.set(loggedInCount.get() + 1);
             if (expectedLoginCount == loggedInCount.get()) {
-                stage.close();
+                dialog.close();
             }
         }
     }
@@ -808,8 +797,9 @@ public class CredentialsManagementController {
                 textField.getStyleClass().add("text-field-styling");
                 textField.textProperty().bindBidirectional(serviceItem.username);
                 textField.disableProperty().bind(Bindings.createBooleanBinding(() ->
-                                serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED)
-                                || serviceItem.isOAuth2Mode(),
+                                serviceItem.authenticationStatus.get().equals(AuthenticationStatus.AUTHENTICATED) ||
+                                        serviceItem.authenticationStatus.get().equals(AuthenticationStatus.CACHED) ||
+                                        serviceItem.isOAuth2Mode(),
                         serviceItem.authenticationStatus, serviceItem.authModeProperty()));
                 textField.setOnKeyPressed(keyEvent -> {
                     if (keyEvent.getCode() == KeyCode.ENTER &&
@@ -882,14 +872,14 @@ public class CredentialsManagementController {
         }
     }
 
-    public void setStage(Stage stage) {
-        this.stage = stage;
+    public void setDialog(Dialog dialog) {
+        this.dialog = dialog;
     }
 
     public class OAuth2Browser {
 
         public static void openInNewStage(String authUrl, String redirectUri,
-                                          SimpleBooleanProperty oauthLoggedIn, Stage parentStage) {
+                                          SimpleBooleanProperty oauthLoggedIn) {
             WebView webView = new WebView();
             WebEngine webEngine = webView.getEngine();
 
@@ -948,7 +938,6 @@ public class CredentialsManagementController {
                     Platform.runLater(() -> {
                         oauthLoggedIn.set(true);
                         stage.close();
-                        // Don't close parentStage — let the user see the updated OAuth2 status
                     });
                 }
             });

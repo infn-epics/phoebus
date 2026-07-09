@@ -321,7 +321,6 @@ public class LogEntryEditorController {
         templateControls.visibleProperty().setValue(editMode.equals(EditMode.NEW_LOG_ENTRY));
 
         attachmentsPane.managedProperty().bind(attachmentsPane.visibleProperty());
-        attachmentsPane.visibleProperty().setValue(true);
 
         // This could be configured in the fxml, but then these UI components would not be visible
         // in Scene Builder.
@@ -411,9 +410,11 @@ public class LogEntryEditorController {
         titleProperty.set(logEntry.getTitle());
 
         textArea.textProperty().bindBidirectional(descriptionProperty);
-        // When editing an existing entry, set the description to the source of the entry.
-        descriptionProperty.set(editMode.equals(EditMode.UPDATE_LOG_ENTRY) ?  logEntry.getSource() :
-                (logEntry.getDescription() != null ? logEntry.getDescription() : ""));
+        switch(editMode){
+            case NEW_LOG_ENTRY -> descriptionProperty.set("");
+            case UPDATE_LOG_ENTRY, NEW_LOG_ENTRY_FROM_SELECTION -> descriptionProperty.set(logEntry.getSource());
+        }
+//        descriptionProperty.set(logEntry.getSource());
         descriptionProperty.addListener((observable, oldValue, newValue) -> isDirty = true);
 
         Image tagIcon = ImageCache.getImage(LogEntryEditorController.class, "/icons/add_tag.png");
@@ -786,17 +787,20 @@ public class LogEntryEditorController {
                             logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));
                 }
 
-                if(editMode.equals(EditMode.NEW_LOG_ENTRY)){
-                    if (replyTo == null) {
+                switch (editMode) {
+                    case NEW_LOG_ENTRY:
+                        if (replyTo == null) {
+                            logEntryResult = Optional.of(logClient.set(ologLog));
+                        } else {
+                            logEntryResult = Optional.of(logClient.reply(ologLog, replyTo));
+                        }
+                        break;
+                    case UPDATE_LOG_ENTRY:
+                        logEntryResult = Optional.of(logClient.update(ologLog));
+                        break;
+                    case NEW_LOG_ENTRY_FROM_SELECTION:
                         logEntryResult = Optional.of(logClient.set(ologLog));
-                    } else {
-                        logEntryResult = Optional.of(logClient.reply(ologLog, replyTo));
-                    }
                 }
-                else{
-                    logEntryResult = Optional.of(logClient.update(ologLog));
-                }
-
                 // Not dirty anymore...
                 isDirty = false;
 

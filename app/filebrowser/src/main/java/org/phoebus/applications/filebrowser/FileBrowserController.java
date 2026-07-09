@@ -43,9 +43,11 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.function.Consumer;
 
 import static org.phoebus.applications.filebrowser.FileBrowser.logger;
 
@@ -70,6 +72,21 @@ public class FileBrowserController {
     private final MenuItem open = new MenuItem(Messages.Open, ImageCache.getImageView(PhoebusApplication.class, "/icons/fldr_obj.png"));
     private final Menu openWith = new Menu(Messages.OpenWith, ImageCache.getImageView(PhoebusApplication.class, "/icons/fldr_obj.png"));
     private final ContextMenu contextMenu = new ContextMenu();
+
+    /**
+     * Create a listener for changes in the selected directory
+     */
+    private final List<Consumer<File>> root_change_listeners = new ArrayList<>();
+    public void addRootChangeListener(Consumer<File> listener) {
+        root_change_listeners.add(listener);
+    }
+
+    private void notifyRootChange(File newRoot) {
+        // Notify that the directory has changed
+        for (Consumer<File> listener : root_change_listeners)
+            listener.accept(newRoot);
+    }
+    
 
     private ExpandedCountChangeListener expandedCountChangeListener;
 
@@ -461,6 +478,7 @@ public class FileBrowserController {
         monitor.setRoot(directory);
         path.setText(directory.toString());
         treeView.setRoot(new FileTreeItem(monitor, directory));
+        notifyRootChange(directory);
     }
 
     /**
@@ -585,8 +603,8 @@ public class FileBrowserController {
         }
         @Override
         public void changed(ObservableValue observable, Object oldValue, Object newValue) {
-            TreeItem root = treeView.getRoot();
-            List<TreeItem> children = root.getChildren();
+            TreeItem<FileInfo> root = treeView.getRoot();
+            List<TreeItem<FileInfo>> children = root.getChildren();
             for (TreeItem child : children) {
                 if (((FileInfo) child.getValue()).file.equals(fileToHighlight)) {
                     treeView.getSelectionModel().select(child);

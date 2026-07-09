@@ -219,6 +219,21 @@
 				<filtering>true</filtering>
 			</resource>
 		</resources>
+		<plugins>
+			<!-- The Elasticsearch-backed *IT tests need the IT Spring profile, but
+			     the surefire unit tests rely on the @Profile("!IT") mock configs
+			     (ElasticTestConfig, ControllersTestConfig). Scope the IT profile to
+			     the failsafe (integration-test) fork only, so it is not forced onto
+			     the surefire unit tests. -->
+			<plugin>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<systemPropertyVariables>
+						<spring.profiles.active>IT</spring.profiles.active>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+		</plugins>
 	</build>
 
 	<profiles>
@@ -255,7 +270,7 @@
 					<plugin>
 						<groupId>org.springframework.boot</groupId>
 						<artifactId>spring-boot-maven-plugin</artifactId>
-						<version>2.7.9</version>
+						<version>${spring.boot.version}</version>
 						<executions>
 							<execution>
 								<goals>

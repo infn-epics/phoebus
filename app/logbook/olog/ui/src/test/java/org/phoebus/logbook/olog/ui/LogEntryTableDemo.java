@@ -126,7 +126,7 @@ public class LogEntryTableDemo extends ApplicationWrapper {
                     .description("First line for log " + i)
                     .createdDate(Instant.now())
                     .inLogbooks(logbooks)
-                    .id(Long.valueOf(i))
+                    .id((long) i)
                     .withTags(tags);
             StringBuilder sb = new StringBuilder();
             for (int j = 0; j < i; j++) {
@@ -135,11 +135,7 @@ public class LogEntryTableDemo extends ApplicationWrapper {
             lb.appendDescription(sb.toString());
             if (i % 2 != 0) {
                 listOfFiles.forEach(file -> {
-                    try {
-                        lb.attach(AttachmentImpl.of(file));
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
+                    lb.attach(AttachmentImpl.of(file));
                 });
                 lb.appendProperty(experimentProperty);
                 lb.appendProperty(track);

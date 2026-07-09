@@ -36,6 +36,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.ws.rs.HttpMethod;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import java.io.File;
@@ -249,7 +250,7 @@ import static java.lang.Thread.sleep;
 
     @Override
     public LogEntry set(LogEntry log) throws LogbookException {
-        return save(log, null);
+        return save(log, null, HttpMethod.PUT);
     }
 
     /**
@@ -262,7 +263,7 @@ import static java.lang.Thread.sleep;
      * @throws LogbookException E.g. due to invalid log entry data, or if attachment content type
      *                          cannot be determined.
      */
-    private LogEntry save(LogEntry log, LogEntry inReplyTo) throws LogbookException {
+    private LogEntry save(LogEntry log, LogEntry inReplyTo, String method) throws LogbookException {
         try {
             javax.ws.rs.core.MultivaluedMap<String, String> queryParams = new javax.ws.rs.core.MultivaluedHashMap<>();
             queryParams.putSingle("markup", "commonmark");
@@ -285,20 +286,26 @@ import static java.lang.Thread.sleep;
                 }
             }
 
+            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes());
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.olog_url + "/logs/multipart?" + QueryParamsHelper.mapToQueryParams(queryParams)))
                     .header("Content-Type", httpRequestMultipartBody.getContentType())
                     .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
                     .header("Authorization", basicAuthenticationHeader)
-                    .PUT(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
+                    .method(method, bodyPublisher)
+                    //.PUT(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 300) {
+            if (response.statusCode() == 401) {
+                LOGGER.log(Level.SEVERE, "Failed to create or update log entry: user not authenticated");
+                throw new LogbookException(Messages.SubmissionFailedInvalidCredentials);
+            } else if (response.statusCode() >= 300) {
                 String body = response.body();
                 String errorMsg = "HTTP " + response.statusCode()
                         + (body != null && !body.isBlank() ? ": " + body : " (no response body)");
-                LOGGER.log(Level.SEVERE, "Failed to create log entry: " + errorMsg);
+                LOGGER.log(Level.SEVERE, "Failed to create or update log entry: " + errorMsg);
                 throw new LogbookException(errorMsg);
             } else {
                 return OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
@@ -313,7 +320,7 @@ import static java.lang.Thread.sleep;
 
     @Override
     public LogEntry reply(LogEntry log, LogEntry inReplyTo) throws LogbookException {
-        return save(log, inReplyTo);
+        return save(log, inReplyTo, HttpMethod.PUT);
     }
 
     /**
@@ -407,54 +414,21 @@ import static java.lang.Thread.sleep;
 
     /**
      * Updates an existing {@link LogEntry}. Supports attachments via a multipart request,
-     * consistent with the {@link #save(LogEntry, LogEntry)} API. Existing server-side attachments
-     * (those without a local {@link java.io.File}) are preserved through the JSON metadata;
-     * only new attachments with a local file are uploaded as file parts.
+     * consistent with the {@link #save(LogEntry, LogEntry, String)} API.
+     * <p>NOTE:</p>
+     * The list of attachments in the {@link LogEntry} may contain additional attachments added by the user. Moreover,
+     * attachments listed in the {@link LogEntry} subject to change, but not listed in the {@link LogEntry} submitted
+     * to the service, will be removed. This makes it possible for a user to update an entry such that a
+     * potentially erroneous attachment is replaced by a correct one.
      *
      * @param logEntry - the updated log entry
      * @return The updated {@link LogEntry}
      */
     @Override
-    public LogEntry update(LogEntry logEntry) {
-
-        try {
-            HttpRequestMultipartBody httpRequestMultipartBody = new HttpRequestMultipartBody();
-            httpRequestMultipartBody.addTextPart("logEntry",
-                    OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntry),
-                    "application/json");
-
-            for (Attachment attachment : logEntry.getAttachments()) {
-                if (attachment.getFile() != null
-                        && attachment.getFile().exists()
-                        && attachment.getFile().canRead()) {
-                    httpRequestMultipartBody.addFilePart(attachment.getFile(), resolveUploadFilename(attachment));
-                }
-            }
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(Preferences.olog_url + "/logs/" + logEntry.getId() + "?markup=commonmark"))
-                    .header("Authorization", basicAuthenticationHeader)
-                    .header("Content-Type", httpRequestMultipartBody.getContentType())
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() >= 300) {
-                String body = response.body();
-                String errorMsg = "HTTP " + response.statusCode()
-                        + (body != null && !body.isBlank() ? ": " + body : " (no response body)");
-                LOGGER.log(Level.SEVERE, "Failed to update log entry id=" + logEntry.getId() + ": " + errorMsg);
-                return null;
-            }
-
-            LogEntry updated = OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogLog.class);
-            changeHandlers.forEach(h -> h.logEntryChanged(updated));
-            return updated;
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Unable to update log entry id=" + logEntry.getId(), e);
-            return null;
-        }
+    public LogEntry update(LogEntry logEntry) throws LogbookException {
+        LogEntry updated = save(logEntry, null, HttpMethod.POST);
+        changeHandlers.forEach(h -> h.logEntryChanged(updated));
+        return updated;
     }
 
     @Override
@@ -641,6 +615,25 @@ import static java.lang.Thread.sleep;
             return response.body();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to obtain attachment " + attachmentName + " for log " + logId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public InputStream getAttachment(Long logId, Attachment attachment){
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(Preferences.olog_url + OLOG_PREFIX + "/attachment/" + attachment.getId()))
+                    .GET()
+                    .build();
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() >= 300) {
+                LOGGER.log(Level.WARNING, "failed to obtain attachment: " + new String(response.body().readAllBytes()));
+                return null;
+            }
+            return response.body();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "failed to obtain attachment", e);
             return null;
         }
     }
