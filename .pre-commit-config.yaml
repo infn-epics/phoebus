@@ -3,6 +3,7 @@ repos:
     rev: v6.0.0
     hooks:
     -   id: check-yaml
+        args: [--allow-multiple-documents]
     # TODO add end of file fixer and whitespace fixer
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.26.1 

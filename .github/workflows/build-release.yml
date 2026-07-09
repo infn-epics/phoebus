@@ -6,6 +6,9 @@ on:
       - 'v*.*.*'  # Trigger on version tags like v5.0.3
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -25,14 +28,16 @@ jobs:
   
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
     - name: Setup Maven and Java Action
-      uses: s4u/setup-maven-action@v1.18.0
+      uses: s4u/setup-maven-action@4f7fb9d9675e899ca81c6161dadbba0189a4ebb1 # v1.18.0
       with:
         java-version: '17'
         maven-version: '3.9.6'
-        
+
     - name: Build
       run: mvn --batch-mode install -DskipTests
 
@@ -46,17 +51,21 @@ jobs:
 
     - name: Rename artifact for release
       shell: bash
+      env:
+        ARTIFACT_NAME: ${{ matrix.artifact_name }}
+        FILE_EXTENSION: ${{ matrix.file_extension }}
+        VERSION: ${{ steps.get_version.outputs.version }}
       run: |
         cd phoebus-product/target
         if [ -f *.tar.gz ]; then
-          mv *.tar.gz phoebus-${{ steps.get_version.outputs.version }}-${{ matrix.artifact_name }}.${{ matrix.file_extension }}
+          mv *.tar.gz "phoebus-${VERSION}-${ARTIFACT_NAME}.${FILE_EXTENSION}"
         fi
         if [ -f *.zip ]; then
-          mv *.zip phoebus-${{ steps.get_version.outputs.version }}-${{ matrix.artifact_name }}.${{ matrix.file_extension }}
+          mv *.zip "phoebus-${VERSION}-${ARTIFACT_NAME}.${FILE_EXTENSION}"
         fi
-    
+
     - name: Upload Release Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: phoebus-${{ matrix.artifact_name }}
         path: |
@@ -71,22 +80,24 @@ jobs:
       contents: write
     
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
     - name: Download all artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       with:
         path: release-artifacts
-    
+
     - name: Display structure of downloaded files
       run: ls -R release-artifacts
-    
+
     - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release-artifacts/*/*
-        generate_release_notes: true
-        draft: false
-        prerelease: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REF_NAME: ${{ github.ref_name }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        gh release create "$REF_NAME" release-artifacts/*/* \
+          --repo "$REPOSITORY" \
+          --generate-notes
