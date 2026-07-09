@@ -157,10 +157,10 @@ them.
 The Template Manager shares the same authentication mechanism as the rest of
 the Olog UI:
 
-- When `oauth2_auth_olog_enabled=true`, it uses **Bearer JWT tokens** from
-  the Phoebus `SecureStore`.
-- Otherwise, it falls back to **Basic authentication** using the credentials
-  stored in the secure store.
+- When the logbook's per-service auth mode (Credentials Management dialog) is
+  **OAuth2**, it uses **Bearer JWT tokens** from the Phoebus `SecureStore`.
+- Otherwise (**Manual**), it falls back to **Basic authentication** using the
+  credentials stored in the secure store.
 
 ---
 
@@ -168,11 +168,18 @@ the Olog UI:
 
 ### Overview
 
-When enabled, the Olog logbook UI and Template Manager authenticate using
+The Olog logbook UI and Template Manager can authenticate using
 **OAuth2 / OpenID Connect JWT tokens** instead of username/password. This
 is designed for deployments using an identity provider such as **Keycloak**.
 
-### Behaviour When Enabled
+Unlike a static on/off switch, the auth mode is a **per-service, live setting**:
+open **Credentials Management** and use the **Auth Mode** column to flip the
+"Logbook" row between **Manual** and **OAuth2** at any time, without
+restarting Phoebus. This matches how save-and-restore's auth mode already
+works, and lets you run OAuth2 for some services while using regular
+username/password (e.g. your normal EPICS/site account) for others.
+
+### Behaviour When OAuth2 Mode Is Selected
 
 1. The **username and password fields** are hidden in the log entry editor.
 2. Login validation no longer checks credentials — only a title and at least
@@ -185,16 +192,13 @@ is designed for deployments using an identity provider such as **Keycloak**.
 
 ### Settings
 
+Auth mode is controlled from the **Credentials Management** dialog (Auth Mode
+column, per service), not a static preference. The dialog itself is only
+shown when OAuth2 is enabled at the application level:
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `org.phoebus.logbook.olog.ui/oauth2_auth_olog_enabled` | boolean | `false` | Enable OAuth2/OIDC JWT authentication. When `true`, the username/password fields are hidden and Bearer tokens are used. |
-
-### Example `settings.ini`
-
-```ini
-# Enable OAuth2 for Olog (requires a configured OIDC provider)
-org.phoebus.logbook.olog.ui/oauth2_auth_olog_enabled=true
-```
+| `org.phoebus.security/enable_oauth2` | boolean | `false` | Enables the OAuth2 login button and the Auth Mode column in Credentials Management. |
 
 ### Server Requirements
 

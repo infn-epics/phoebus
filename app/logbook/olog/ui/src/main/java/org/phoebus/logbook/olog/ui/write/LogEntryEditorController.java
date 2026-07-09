@@ -308,9 +308,9 @@ public class LogEntryEditorController {
             return;
         }
 
-        // hidden username and password fields if properties oauth2_olog_enable is true+
+        // Hide username and password fields when the logbook's per-service auth mode is OAuth2.
 
-        if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+        if (isOlogOAuth2Mode()) {
             userField.setVisible(false);
             userFieldLabel.setVisible(false);
             passwordField.setVisible(false);
@@ -452,7 +452,7 @@ public class LogEntryEditorController {
                 tagsDropdownButton.setSelected(false);
         });
 
-        if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+        if (isOlogOAuth2Mode()) {
             inputValid.bind(Bindings.createBooleanBinding(() -> titleProperty.get() != null && !titleProperty.get().isEmpty() &&
                             !selectedLogbooks.isEmpty(),
                     titleProperty, usernameProperty, passwordProperty, selectedLogbooks));
@@ -777,7 +777,7 @@ public class LogEntryEditorController {
 
             LogClient logClient = null;
             try {
-                if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+                if (isOlogOAuth2Mode()) {
                     SecureStore secureStore = new SecureStore();
 
                     logClient =
@@ -858,6 +858,22 @@ public class LogEntryEditorController {
             }
             submissionInProgress.set(false);
         });
+    }
+
+    /**
+     * Whether the logbook service's per-service auth mode (set in the Credentials Management
+     * dialog) is currently OAuth2. Checked dynamically so a user can switch between OAuth2 and
+     * manual username/password for the logbook without restarting Phoebus, consistent with
+     * save-and-restore's {@code SaveAndRestoreClientImpl.getAuthorizationHeaderOrNull()}.
+     */
+    private boolean isOlogOAuth2Mode() {
+        try {
+            SecureStore secureStore = new SecureStore();
+            return SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(new OlogAuthenticationScope()));
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to read Olog auth mode, defaulting to manual", e);
+            return false;
+        }
     }
 
     private List<Attachment> normalizeAttachmentsForSubmit(Collection<Attachment> attachments) {

@@ -12,7 +12,6 @@ import org.phoebus.logbook.LogTemplate;
 import org.phoebus.logbook.Logbook;
 import org.phoebus.logbook.Property;
 import org.phoebus.logbook.Tag;
-import org.phoebus.logbook.olog.ui.LogbookUIPreferences;
 import org.phoebus.olog.es.api.Preferences;
 import org.phoebus.olog.es.api.model.OlogLogbook;
 import org.phoebus.olog.es.api.model.OlogObjectMappers;
@@ -114,8 +113,9 @@ public class OlogAdminClient {
         try {
             SecureStore secureStore = new SecureStore();
 
-            // First try OAuth2 JWT token (stored separately from scoped credentials)
-            if (LogbookUIPreferences.oauth2_auth_olog_enabled) {
+            // First try OAuth2 JWT token (stored separately from scoped credentials),
+            // if the logbook's per-service auth mode (Credentials Management dialog) is OAuth2.
+            if (SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(new OlogAuthenticationScope()))) {
                 String jwtToken = secureStore.get(SecureStore.JWT_TOKEN_TAG);
                 if (jwtToken != null && !jwtToken.isEmpty()) {
                     this.authHeader = "Bearer " + jwtToken;
