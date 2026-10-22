@@ -133,3 +133,12 @@ docs/source/_ext/**/*.pyc
 docs/phoebus_docs.egg-info/
 *.pyc
 olog-create-log.txt
+
+# macOS
+.DS_Store
+
+# Local build/debug logs
+build.log
+build_output.txt
+full_logs.txt
+olog_logs.txt
