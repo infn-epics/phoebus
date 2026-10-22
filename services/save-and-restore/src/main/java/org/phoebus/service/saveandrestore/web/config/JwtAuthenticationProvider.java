@@ -22,11 +22,12 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import net.minidev.json.JSONValue;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
+import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.phoebus.security.managers.OidcTrustStoreManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -41,7 +42,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import javax.net.ssl.SSLContext;
 import java.io.FileInputStream;
 import java.math.BigInteger;
@@ -129,7 +130,12 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
                         .build();
 
                 CloseableHttpClient httpClient = HttpClients.custom()
-                        .setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE))
+                        .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
+                                .setSSLSocketFactory(SSLConnectionSocketFactoryBuilder.create()
+                                        .setSslContext(sslContext)
+                                        .setHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                                        .build())
+                                .build())
                         .build();
 
                 this.restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));

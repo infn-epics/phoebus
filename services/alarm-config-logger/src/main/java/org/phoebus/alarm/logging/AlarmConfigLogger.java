@@ -51,7 +51,8 @@ import org.eclipse.jgit.util.FS;
 import org.phoebus.applications.alarm.client.AlarmClient;
 import org.phoebus.applications.alarm.model.xml.XmlModelWriter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A Runnable which creates the alarm config model for the given topic and its
@@ -153,8 +154,8 @@ public class AlarmConfigLogger implements Runnable {
         }
 
         writeAlarmModel();
-        try (Consumer<String, String> consumer = new KafkaConsumer<String, String>(props,
-                Serdes.String().deserializer(), Serdes.String().deserializer());) {
+        try (Consumer<String, String> consumer = new KafkaConsumer<>(props,
+            Serdes.String().deserializer(), Serdes.String().deserializer());) {
 
             // Rewind whenever assigned to partition
             final ConsumerRebalanceListener crl = new ConsumerRebalanceListener() {
@@ -192,7 +193,7 @@ public class AlarmConfigLogger implements Runnable {
             StreamsBuilder builder = new StreamsBuilder();
 
             KStream<String, String> alarms = builder.stream(topic, Consumed.with(Serdes.String(), Serdes.String()));
-            alarms.process(new ProcessorSupplier<String, String>() {
+            alarms.process(new ProcessorSupplier<>() {
                 @Override
                 public Processor<String, String> get() {
                     return new ProcessAlarmConfigMessage();
@@ -226,7 +227,7 @@ public class AlarmConfigLogger implements Runnable {
         System.exit(0);
     }
 
-    ObjectMapper objectMapper = new ObjectMapper();
+    ObjectMapper objectMapper = JsonMapper.builder().build();
 
     /**
      * Process a single alarm configuration event

@@ -3,9 +3,9 @@
  */
 package org.phoebus.applications.utility.logbook;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -94,8 +94,9 @@ public class LogbookTemplateManagerController {
     private final ObjectMapper prettyMapper;
 
     public LogbookTemplateManagerController() {
-        prettyMapper = OlogAdminClient.getObjectMapper().copy();
-        prettyMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        prettyMapper = OlogAdminClient.getObjectMapper().rebuild()
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .build();
     }
 
     @FXML

@@ -3,7 +3,7 @@
   <parent>
     <artifactId>app-utility</artifactId>
     <groupId>org.phoebus</groupId>
-    <version>6.0.0-SNAPSHOT</version>
+    <version>7.0.0-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
@@ -13,37 +13,37 @@
     <dependency>
       <groupId>org.phoebus</groupId>
       <artifactId>core-framework</artifactId>
-      <version>6.0.0-SNAPSHOT</version>
+      <version>7.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.phoebus</groupId>
       <artifactId>core-ui</artifactId>
-      <version>6.0.0-SNAPSHOT</version>
+      <version>7.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.phoebus</groupId>
       <artifactId>core-logbook</artifactId>
-      <version>6.0.0-SNAPSHOT</version>
+      <version>7.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.phoebus</groupId>
       <artifactId>app-logbook-olog-client-es</artifactId>
-      <version>6.0.0-SNAPSHOT</version>
+      <version>7.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.phoebus</groupId>
       <artifactId>app-logbook-olog-ui</artifactId>
-      <version>6.0.0-SNAPSHOT</version>
+      <version>7.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${tools.jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>${jackson.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-      <version>${jackson.version}</version>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.annotations.version}</version>
     </dependency>
   </dependencies>
 </project>
