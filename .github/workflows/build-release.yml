@@ -32,11 +32,8 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Setup Maven and Java Action
-      uses: s4u/setup-maven-action@4f7fb9d9675e899ca81c6161dadbba0189a4ebb1 # v1.18.0
-      with:
-        java-version: '17'
-        maven-version: '3.9.6'
+    - name: Set up Java
+      uses: ./.github/actions/setup-java
 
     - name: Build
       run: mvn --batch-mode install -DskipTests
