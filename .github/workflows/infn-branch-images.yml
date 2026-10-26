@@ -1,0 +1,28 @@
+name: INFN branch service images
+
+# Build the service images from INFN integration branches so they can be tested
+# before merging to master. Images are tagged :<branch> (e.g. :infn-2026-10);
+# the :master tag used by the beamlines is only published by merge.yml.
+on:
+  push:
+    branches:
+      - 'infn/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-image:
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [alarm-server, alarm-logger, save-and-restore, scan-server]
+    uses: ./.github/workflows/_docker-image.yml
+    with:
+      image-suffix: service-${{ matrix.service }}
+      context: services/${{ matrix.service }}
+      maven-args: ${{ matrix.service == 'scan-server' && '-Pexecutable-jar --update-snapshots package' || '--update-snapshots package' }}
