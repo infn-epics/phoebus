@@ -143,28 +143,45 @@ import static java.lang.Thread.sleep;
                 return new OlogHttpClient(this.jwtToken);
             }
             else if (this.username == null || this.password == null) {
-                ScopedAuthenticationToken scopedAuthenticationToken = getCredentialsFromSecureStore();
-                if (scopedAuthenticationToken != null) {
-                    this.username = scopedAuthenticationToken.getUsername();
-                    this.password = scopedAuthenticationToken.getPassword();
+                // No explicit credentials: use what the user stored, so that read requests
+                // (search, history, attachments) are authenticated too. Olog with logbook
+                // permissions rejects anonymous reads.
+                try {
+                    SecureStore secureStore = new SecureStore();
+                    OlogAuthenticationScope scope = new OlogAuthenticationScope();
+                    String storedJwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
+                    boolean hasJwt = storedJwt != null && !storedJwt.isEmpty();
+                    if (hasJwt && SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(scope))) {
+                        return new OlogHttpClient(storedJwt);
+                    }
+                    ScopedAuthenticationToken scopedAuthenticationToken = secureStore.getScopedAuthenticationToken(scope);
+                    if (scopedAuthenticationToken != null) {
+                        this.username = scopedAuthenticationToken.getUsername();
+                        this.password = scopedAuthenticationToken.getPassword();
+                    } else if (hasJwt) {
+                        // Manual mode without per-service credentials: fall back to the global JWT
+                        return new OlogHttpClient(storedJwt);
+                    }
+                } catch (Exception e) {
+                    Logger.getLogger(OlogHttpClient.class.getName()).log(Level.WARNING, "Unable to read credentials from SecureStore", e);
                 }
             }
             return new OlogHttpClient(this.username, this.password);
-        }
-
-        private ScopedAuthenticationToken getCredentialsFromSecureStore() {
-            try {
-                SecureStore secureStore = new SecureStore();
-                return secureStore.getScopedAuthenticationToken(new OlogAuthenticationScope());
-            } catch (Exception e) {
-                Logger.getLogger(OlogHttpClient.class.getName()).log(Level.WARNING, "Unable to instantiate SecureStore", e);
-                return null;
-            }
         }
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * Adds the Authorization header if this client has credentials; anonymous clients send none.
+     */
+    private HttpRequest.Builder withAuthorization(HttpRequest.Builder builder) {
+        if (basicAuthenticationHeader != null) {
+            builder.header("Authorization", basicAuthenticationHeader);
+        }
+        return builder;
     }
 
 
@@ -336,10 +353,9 @@ import static java.lang.Thread.sleep;
 
     @Override
     public LogEntry findLogById(Long logId) {
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest request = withAuthorization(HttpRequest.newBuilder()
                 .uri(URI.create(Preferences.olog_url + "/logs/" + logId))
-                .header("Content-Type", CONTENT_TYPE_JSON)
-                .header("Authorization", basicAuthenticationHeader)
+                .header("Content-Type", CONTENT_TYPE_JSON))
                 .GET()
                 .build();
 
@@ -369,10 +385,10 @@ import static java.lang.Thread.sleep;
      * @throws RuntimeException If error occurs, e.g. bad request due to unsupported or malformed search parameter(s).
      */
     private SearchResult findLogs(MultivaluedMap<String, String> searchParams) throws RuntimeException {
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest request = withAuthorization(HttpRequest.newBuilder()
                 .uri(URI.create(Preferences.olog_url +
                         "/logs/search?" + QueryParamsHelper.mapToQueryParams(searchParams)))
-                .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
+                .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO))
 //                .header("Content-Type", CONTENT_TYPE_JSON)
                 .GET()
                 .build();
@@ -601,10 +617,9 @@ import static java.lang.Thread.sleep;
     @Override
     public InputStream getAttachment(Long logId, String attachmentName) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = withAuthorization(HttpRequest.newBuilder()
                     .uri(URI.create(Preferences.olog_url + "/logs/attachments/" + logId + "/" +
-                            URLEncoder.encode(attachmentName, StandardCharsets.UTF_8).replace("+", "%20"))) // + char does not work in path element!
-                    .header("Authorization", basicAuthenticationHeader)
+                            URLEncoder.encode(attachmentName, StandardCharsets.UTF_8).replace("+", "%20")))) // + char does not work in path element!
                     .GET()
                     .build();
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -622,8 +637,8 @@ import static java.lang.Thread.sleep;
     @Override
     public InputStream getAttachment(Long logId, Attachment attachment){
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(Preferences.olog_url + OLOG_PREFIX + "/attachment/" + attachment.getId()))
+            HttpRequest request = withAuthorization(HttpRequest.newBuilder()
+                    .uri(URI.create(Preferences.olog_url + OLOG_PREFIX + "/attachment/" + attachment.getId())))
                     .GET()
                     .build();
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -646,11 +661,11 @@ import static java.lang.Thread.sleep;
     @Override
     public SearchResult getArchivedEntries(long id) {
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest request = withAuthorization(HttpRequest.newBuilder()
                 .uri(URI.create(Preferences.olog_url +
                         "/logs/archived/" + id))
                 .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
-                .header("Content-Type", CONTENT_TYPE_JSON)
+                .header("Content-Type", CONTENT_TYPE_JSON))
                 .GET()
                 .build();
         try {
