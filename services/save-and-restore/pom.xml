@@ -172,18 +172,12 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>jakarta.json</groupId>
-			<artifactId>jakarta.json-api</artifactId>
-			<version>2.0.1</version>
-		</dependency>
-
-		<!-- Source: https://mvnrepository.com/artifact/org.glassfish/jakarta.json -->
-		<dependency>
-			<groupId>org.glassfish</groupId>
-			<artifactId>jakarta.json</artifactId>
-			<version>2.0.1</version>
-		</dependency>
+		<!-- No jakarta.json-api / org.glassfish:jakarta.json here: elasticsearch-java
+		     brings jakarta.json-api and its provider, org.eclipse.parsson:parsson, in
+		     matching versions. org.glassfish:jakarta.json must not come back: its
+		     org.glassfish.json.JsonProviderImpl has the same name as the javax.json one
+		     vtype-json needs (see app/save-and-restore/model/pom.xml,
+		     ControlSystemStudio/phoebus#4002). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-logging</artifactId>
