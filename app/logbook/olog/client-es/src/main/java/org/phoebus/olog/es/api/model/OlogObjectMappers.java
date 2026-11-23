@@ -13,18 +13,22 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 import tools.jackson.databind.deser.std.StdDeserializer;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.module.SimpleAbstractTypeResolver;
 import tools.jackson.databind.module.SimpleModule;
 import tools.jackson.databind.ser.std.StdSerializer;
 import org.phoebus.logbook.Attachment;
+import org.phoebus.logbook.LogTemplate;
 import org.phoebus.logbook.Logbook;
 import org.phoebus.logbook.Property;
 import org.phoebus.logbook.Tag;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -147,6 +151,7 @@ public class OlogObjectMappers {
         logEntryDeserializer = JsonMapper.builder()
                 .addModule(module)
                 .addMixIn(Attachment.class, AttachmentMixIn.class)
+                .addMixIn(LogTemplate.class, LogTemplateMixIn.class)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
     }
@@ -162,10 +167,26 @@ public class OlogObjectMappers {
         logEntrySerializer = JsonMapper.builder()
                 .addModule(module)
                 .addMixIn(Attachment.class, AttachmentMixIn.class)
+                .addMixIn(LogTemplate.class, LogTemplateMixIn.class)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
     }
 
+
+    /**
+     * Olog sends and expects template dates as epoch milliseconds. Without this, Jackson reads
+     * the number as epoch seconds (year ~58865) and writes it back as an ISO string, which the
+     * server rejects with HTTP 400 when a template is updated.
+     */
+    abstract static class LogTemplateMixIn {
+        @JsonSerialize(using = UnixTimestampSerializer.class)
+        @JsonDeserialize(using = UnixTimestampDeserializer.class)
+        Instant createdDate;
+
+        @JsonSerialize(using = UnixTimestampSerializer.class)
+        @JsonDeserialize(using = UnixTimestampDeserializer.class)
+        Instant modifiedDate;
+    }
 
     public interface AttachmentMixIn {
 
