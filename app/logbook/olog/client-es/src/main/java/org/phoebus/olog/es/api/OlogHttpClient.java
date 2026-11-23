@@ -21,6 +21,7 @@ import org.phoebus.logbook.Messages;
 import org.phoebus.logbook.Property;
 import org.phoebus.logbook.SearchResult;
 import org.phoebus.logbook.Tag;
+import org.phoebus.olog.es.api.model.OlogAttachment;
 import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.olog.es.api.model.OlogObjectMappers;
 import org.phoebus.olog.es.api.model.OlogSearchResult;
@@ -288,19 +289,41 @@ import static java.lang.Thread.sleep;
                 queryParams.putSingle("inReplyTo", Long.toString(inReplyTo.getId()));
             }
 
+            // The service pairs each attachment listed in the JSON with a file part by file name.
+            // An attachment listed without a file part is looked up as an already stored attachment,
+            // which for a new entry fails with an opaque "HTTP 404: Attachment <id> not found".
+            // So resolve the upload names first, keep the JSON in sync with them, and refuse to
+            // create an entry whose attachment file is gone.
+            List<Attachment> attachmentsToUpload = new ArrayList<>();
+            List<String> uploadFilenames = new ArrayList<>();
+            for (Attachment attachment : log.getAttachments()) {
+                File file = attachment.getFile();
+                if (file != null && file.exists() && file.canRead()) {
+                    String uploadFilename = resolveUploadFilename(attachment);
+                    if (attachment instanceof OlogAttachment ologAttachment
+                            && !uploadFilename.equals(ologAttachment.getUniqueFilename())) {
+                        ologAttachment.setUniqueFilename(uploadFilename);
+                    }
+                    attachmentsToUpload.add(attachment);
+                    uploadFilenames.add(uploadFilename);
+                } else if (file != null || HttpMethod.PUT.equals(method)) {
+                    // A file attachment that has disappeared, or (on create) an attachment
+                    // without any file, cannot be matched by the service.
+                    String name = file != null ? file.getAbsolutePath() : attachment.getName();
+                    String issue = file == null ? "has no file" : (file.exists() ? "is not readable" : "no longer exists");
+                    LOGGER.log(Level.SEVERE, "Attachment " + name + " " + issue + ", cannot submit log entry");
+                    throw new LogbookException("Attachment " + name + " " + issue
+                            + ". Remove it from the attachments and add it again.");
+                }
+                // else: update of an entry, attachment already stored by the service
+            }
+
             HttpRequestMultipartBody httpRequestMultipartBody = new HttpRequestMultipartBody();
             httpRequestMultipartBody.addTextPart("logEntry", OlogObjectMappers.logEntrySerializer.writeValueAsString(log), "application/json");
-
-            for (Attachment attachment : log.getAttachments()) {
-                // Defensive checks: ensure attachment file is valid before adding to multipart request
-                if (attachment.getFile() != null && attachment.getFile().exists() && attachment.getFile().canRead()) {
-                    String uploadFilename = resolveUploadFilename(attachment);
-                    httpRequestMultipartBody.addFilePart(attachment.getFile(), uploadFilename);
-                    LOGGER.log(Level.FINE, "Added attachment: " + uploadFilename + " (" + attachment.getFile().length() + " bytes)");
-                } else {
-                    String issue = attachment.getFile() == null ? "file is null" : (attachment.getFile().exists() ? "not readable" : "does not exist");
-                    LOGGER.log(Level.WARNING, "Skipping attachment " + attachment.getUniqueFilename() + ": " + issue);
-                }
+            for (int i = 0; i < attachmentsToUpload.size(); i++) {
+                File file = attachmentsToUpload.get(i).getFile();
+                httpRequestMultipartBody.addFilePart(file, uploadFilenames.get(i));
+                LOGGER.log(Level.FINE, "Added attachment: " + uploadFilenames.get(i) + " (" + file.length() + " bytes)");
             }
 
             HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes());
