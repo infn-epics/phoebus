@@ -4,6 +4,7 @@
 package org.phoebus.applications.utility.logbook;
 
 import tools.jackson.core.type.TypeReference;
+import org.phoebus.security.tokens.JwtUserInfo;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
 import javafx.application.Platform;
@@ -112,7 +113,7 @@ public class LogbookTemplateManagerController {
         templateLevelCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().level() != null ? cd.getValue().level() : ""));
         templateOwnerCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().owner() != null ? cd.getValue().owner() : ""));
+                new SimpleStringProperty(cd.getValue().owner() != null ? JwtUserInfo.readableOwner(cd.getValue().owner()) : ""));
         templatesTable.setItems(templatesList);
         templatesTable.getSelectionModel().selectedItemProperty().addListener(
                 (obs, old, sel) -> showTemplatePreview(sel));
@@ -121,7 +122,7 @@ public class LogbookTemplateManagerController {
         logbookNameCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getName()));
         logbookOwnerCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getOwner() != null ? cd.getValue().getOwner() : ""));
+                new SimpleStringProperty(cd.getValue().getOwner() != null ? JwtUserInfo.readableOwner(cd.getValue().getOwner()) : ""));
         logbooksTable.setItems(logbooksList);
         logbooksTable.getSelectionModel().selectedItemProperty().addListener(
                 (obs, old, sel) -> showLogbookPreview(sel));
@@ -572,7 +573,7 @@ public class LogbookTemplateManagerController {
         if (template.title() != null && !template.title().isEmpty())
             md.append("**Title:** ").append(template.title()).append("  \n");
         if (template.owner() != null)
-            md.append("**Owner:** ").append(template.owner()).append("  \n");
+            md.append("**Owner:** ").append(JwtUserInfo.readableOwner(template.owner())).append("  \n");
         if (template.level() != null)
             md.append("**Level:** ").append(template.level()).append("  \n");
         if (template.id() != null)

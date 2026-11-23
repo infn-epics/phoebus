@@ -48,6 +48,7 @@ import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.managers.OidcTrustStoreManager;
 import org.phoebus.security.store.SecureStore;
+import org.phoebus.security.tokens.JwtUserInfo;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
 import org.phoebus.ui.dialog.ExceptionDetailsErrorDialog;
@@ -499,7 +500,8 @@ public class CredentialsManagementController {
                                 .filter(p -> p.getAuthenticationScope().getScope().equals(token.getAuthenticationScope().getScope()))
                                 .findFirst().orElse(null);
                 loggedInCount.set(loggedInCount.get() + 1);
-                return new ServiceItem(provider, AuthenticationStatus.CACHED, token.getUsername(), token.getPassword());
+                return new ServiceItem(provider, AuthenticationStatus.CACHED,
+                        JwtUserInfo.readableOwner(token.getUsername()), token.getPassword());
             }).collect(Collectors.toList());
 
             authenticationProviders.forEach(p -> {
@@ -550,7 +552,9 @@ public class CredentialsManagementController {
                                 username = (String) claims.get("preferred_username");
                             }
                         }
-                        item.username.set(username);
+                        // Show the readable name; the id stays in the ScopedAuthenticationToken below
+                        JwtUserInfo userInfo = JwtUserInfo.fromToken(jwt);
+                        item.username.set(userInfo != null && userInfo.label() != null ? userInfo.label() : username);
                         item.password.set("(OAuth2 token)");
                         item.authenticationStatus.set(AuthenticationStatus.AUTHENTICATED);
                         item.loginResultMessage.set("OAuth2 OK");
