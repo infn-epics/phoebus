@@ -92,6 +92,7 @@ import org.phoebus.logbook.olog.ui.Messages;
 import org.phoebus.logbook.olog.ui.PreviewViewer;
 import org.phoebus.olog.es.api.model.OlogAttachment;
 import org.phoebus.olog.es.api.model.OlogLog;
+import org.phoebus.security.authentication.oauth2.OAuth2TokenManager;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.AuthenticationScope;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
@@ -780,7 +781,7 @@ public class LogEntryEditorController {
                     SecureStore secureStore = new SecureStore();
 
                     logClient =
-                            logFactory.getLogClient(new SimpleAuthenticationOauthToken(secureStore.get(SecureStore.JWT_TOKEN_TAG)));
+                            logFactory.getLogClient(new SimpleAuthenticationOauthToken(OAuth2TokenManager.getAccessToken()));
                 } else {
                     logClient =
                             logFactory.getLogClient(new SimpleAuthenticationToken(usernameProperty.get(), passwordProperty.get()));

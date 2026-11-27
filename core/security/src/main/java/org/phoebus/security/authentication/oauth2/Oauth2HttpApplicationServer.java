@@ -69,9 +69,7 @@ public class Oauth2HttpApplicationServer {
             JSONObject accessToken = getToken(authCode);
             // Inserisci il token nella sessione
             try {
-                SecureStore secureStore = new SecureStore();
-                secureStore.set(SecureStore.JWT_TOKEN_TAG, accessToken.getAsString("access_token"));
-                secureStore.set(SecureStore.JWT_ID_TOKEN, accessToken.getAsString("id_token"));
+                OAuth2TokenManager.storeTokens(accessToken);
 //                secureStore.setScopedAuthentication(new SimpleAuthenticationOauthToken(accessToken.getAsString("access_token")));
 
                 Platform.runLater(() -> {
@@ -127,40 +125,11 @@ public class Oauth2HttpApplicationServer {
 
 
     public JSONObject getToken(String authCode) throws IOException {
-        String tokenUrl = PhoebusSecurity.oauth2_auth_url +  "/realms/"+ PhoebusSecurity.oauth2_realm + "/protocol/openid-connect/token";
         String params = "grant_type=authorization_code"
                 + "&code=" + authCode
                 + "&scope=openid"
                 + "&redirect_uri=http://localhost:"+ PhoebusSecurity.oauth2_callback_server_port + "/oauth2Callback"
                 + "&client_id=" + PhoebusSecurity.oauth2_client_id;
-
-        URL url = URI.create(tokenUrl).toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-        // If the token endpoint is HTTPS, use the OIDC truststore-backed SSLContext
-        if (conn instanceof HttpsURLConnection) {
-            try {
-                SSLContext sslContext = OidcTrustStoreManager.getInstance().getSSLContext();
-                ((HttpsURLConnection) conn).setSSLSocketFactory(sslContext.getSocketFactory());
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Failed to set OIDC SSLContext on token request, using JVM default", e);
-            }
-        }
-
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(params.getBytes(StandardCharsets.UTF_8));
-        }
-
-        if (conn.getResponseCode() == 200) {
-            // Leggi la risposta e estrai il token
-            JSONObject json = (JSONObject) JSONValue.parse(new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            return json;
-        } else {
-            throw new IOException("Failed to fetch token: " + conn.getResponseCode());
-        }
+        return OAuth2TokenManager.postToTokenEndpoint(params);
     }
 }

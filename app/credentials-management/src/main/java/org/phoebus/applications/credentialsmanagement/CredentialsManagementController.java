@@ -47,6 +47,7 @@ import org.phoebus.security.PhoebusSecurity;
 import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.authorization.ServiceAuthenticationProvider;
 import org.phoebus.security.managers.OidcTrustStoreManager;
+import org.phoebus.security.authentication.oauth2.OAuth2TokenManager;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.JwtUserInfo;
 import org.phoebus.security.tokens.AuthenticationScope;
@@ -160,7 +161,8 @@ public class CredentialsManagementController {
 
         try {
             if (secureStore != null) {
-                String jwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
+                // Renews the access token first if it is about to expire and a refresh token is stored
+                String jwt = OAuth2TokenManager.getAccessToken();
                 if (jwt != null) {
                     net.minidev.json.JSONObject claims = parseJwtPayload(jwt);
                     if (claims != null && claims.containsKey("exp")) {
@@ -172,12 +174,14 @@ public class CredentialsManagementController {
                             LOGGER.info("OAuth2 token in SecureStore has expired, clearing");
                             secureStore.delete(SecureStore.JWT_TOKEN_TAG);
                             secureStore.delete(SecureStore.JWT_ID_TOKEN);
+                            OAuth2TokenManager.clearRefreshToken();
                             oauthLoggedIn.set(false);
                         }
                     } else {
                         LOGGER.warning("Cannot verify OAuth2 token expiry, clearing stale token");
                         secureStore.delete(SecureStore.JWT_TOKEN_TAG);
                         secureStore.delete(SecureStore.JWT_ID_TOKEN);
+                        OAuth2TokenManager.clearRefreshToken();
                         oauthLoggedIn.set(false);
                     }
                 }
@@ -321,6 +325,7 @@ public class CredentialsManagementController {
                 oauthLoggedIn.set(false);
                 secureStore.delete(SecureStore.JWT_ID_TOKEN);
                 secureStore.delete(SecureStore.JWT_TOKEN_TAG);
+                OAuth2TokenManager.clearRefreshToken();
             } else {
                 String redirectUri = "http://localhost:" + PhoebusSecurity.oauth2_callback_server_port + PhoebusSecurity.oauth2_callback;
                 String authUrl = PhoebusSecurity.oauth2_auth_url + "/realms/" + PhoebusSecurity.oauth2_realm
@@ -925,9 +930,7 @@ public class CredentialsManagementController {
                                         .Oauth2HttpApplicationServer.getInstance();
                                 if (tokenHelper != null) {
                                     net.minidev.json.JSONObject tokenResponse = tokenHelper.getToken(authCode);
-                                    SecureStore store = new SecureStore();
-                                    store.set(SecureStore.JWT_TOKEN_TAG, tokenResponse.getAsString("access_token"));
-                                    store.set(SecureStore.JWT_ID_TOKEN, tokenResponse.getAsString("id_token"));
+                                    OAuth2TokenManager.storeTokens(tokenResponse);
                                     LOGGER.info("OAuth2 token stored successfully");
                                 } else {
                                     LOGGER.warning("Oauth2HttpApplicationServer not available, trying direct exchange");
@@ -981,9 +984,7 @@ public class CredentialsManagementController {
             if (conn.getResponseCode() == 200) {
                 net.minidev.json.JSONObject json = (net.minidev.json.JSONObject) net.minidev.json.JSONValue.parse(
                         new String(conn.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
-                SecureStore store = new SecureStore();
-                store.set(SecureStore.JWT_TOKEN_TAG, json.getAsString("access_token"));
-                store.set(SecureStore.JWT_ID_TOKEN, json.getAsString("id_token"));
+                OAuth2TokenManager.storeTokens(json);
                 LOGGER.info("OAuth2 token stored successfully (direct exchange)");
             } else {
                 throw new Exception("Token exchange failed with HTTP " + conn.getResponseCode());

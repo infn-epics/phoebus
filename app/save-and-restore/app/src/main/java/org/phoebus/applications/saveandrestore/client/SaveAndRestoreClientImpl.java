@@ -25,6 +25,7 @@ import org.phoebus.applications.saveandrestore.model.Tag;
 import org.phoebus.applications.saveandrestore.model.TagData;
 import org.phoebus.applications.saveandrestore.model.search.Filter;
 import org.phoebus.applications.saveandrestore.model.search.SearchResult;
+import org.phoebus.security.authentication.oauth2.OAuth2TokenManager;
 import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.security.tokens.ScopedAuthenticationToken;
@@ -125,7 +126,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
 
             if (SecureStore.AUTH_MODE_OAUTH2.equals(authMode)) {
                 // OAuth2 mode: use global JWT Bearer token
-                String jwtToken = store.get(SecureStore.JWT_TOKEN_TAG);
+                String jwtToken = OAuth2TokenManager.getAccessToken();
                 if (jwtToken != null && !jwtToken.isEmpty()) {
                     LOGGER.log(Level.FINE, "Using global JWT Bearer token for save-and-restore (auth_mode=oauth2)");
                     return "Bearer " + jwtToken;
@@ -144,7 +145,7 @@ public class SaveAndRestoreClientImpl implements SaveAndRestoreClient {
             }
 
             // Fall back to global JWT Bearer token even in manual mode
-            String jwtToken = store.get(SecureStore.JWT_TOKEN_TAG);
+            String jwtToken = OAuth2TokenManager.getAccessToken();
             if (jwtToken != null && !jwtToken.isEmpty()) {
                 LOGGER.log(Level.FINE, "Using global JWT Bearer token for save-and-restore (manual fallback)");
                 return "Bearer " + jwtToken;

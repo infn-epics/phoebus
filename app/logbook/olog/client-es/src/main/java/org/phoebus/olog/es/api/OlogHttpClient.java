@@ -26,6 +26,7 @@ import org.phoebus.olog.es.api.model.OlogLog;
 import org.phoebus.olog.es.api.model.OlogObjectMappers;
 import org.phoebus.olog.es.api.model.OlogSearchResult;
 import org.phoebus.olog.es.authentication.LoginCredentials;
+import org.phoebus.security.authentication.oauth2.OAuth2TokenManager;
 import org.phoebus.security.authorization.AuthenticationStatus;
 import org.phoebus.security.store.SecureStore;
 import org.phoebus.applications.logbook.authentication.OlogAuthenticationScope;
@@ -172,7 +173,7 @@ import static java.lang.Thread.sleep;
         try {
             SecureStore secureStore = new SecureStore();
             OlogAuthenticationScope scope = new OlogAuthenticationScope();
-            String storedJwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
+            String storedJwt = OAuth2TokenManager.getAccessToken();
             boolean hasJwt = storedJwt != null && !storedJwt.isEmpty();
             if (hasJwt && SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(scope))) {
                 return "Bearer " + storedJwt;

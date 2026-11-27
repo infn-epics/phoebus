@@ -28,6 +28,9 @@ public class SecureStore
 {
 
     public static final String JWT_ID_TOKEN = "id_token";
+
+    /** OAuth2 refresh token, used to renew the access token ({@link #JWT_TOKEN_TAG}) */
+    public static final String JWT_REFRESH_TOKEN = "refresh_token";
     private final Store<String, String> store;
 
     /** Tags */
