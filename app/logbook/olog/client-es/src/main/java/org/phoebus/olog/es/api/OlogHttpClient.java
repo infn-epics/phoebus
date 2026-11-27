@@ -91,6 +91,14 @@ import static java.lang.Thread.sleep;
 
     private String basicAuthenticationHeader;
 
+    /**
+     * True when the client was built without explicit credentials: the Authorization header is then
+     * resolved from the {@link SecureStore} on every request. A client is often kept for a long time
+     * (e.g. by the log entry table), while an OAuth2 access token expires after minutes; reading it
+     * per request makes a new sign-in effective without reopening the logbook.
+     */
+    private boolean credentialsFromStore = false;
+
     static {
         System.getProperties().setProperty("jdk.internal.httpclient.disableHostnameVerification",
                 Boolean.toString(Preferences.permissive_hostname_verifier));
@@ -146,29 +154,70 @@ import static java.lang.Thread.sleep;
             else if (this.username == null || this.password == null) {
                 // No explicit credentials: use what the user stored, so that read requests
                 // (search, history, attachments) are authenticated too. Olog with logbook
-                // permissions rejects anonymous reads.
-                try {
-                    SecureStore secureStore = new SecureStore();
-                    OlogAuthenticationScope scope = new OlogAuthenticationScope();
-                    String storedJwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
-                    boolean hasJwt = storedJwt != null && !storedJwt.isEmpty();
-                    if (hasJwt && SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(scope))) {
-                        return new OlogHttpClient(storedJwt);
-                    }
-                    ScopedAuthenticationToken scopedAuthenticationToken = secureStore.getScopedAuthenticationToken(scope);
-                    if (scopedAuthenticationToken != null) {
-                        this.username = scopedAuthenticationToken.getUsername();
-                        this.password = scopedAuthenticationToken.getPassword();
-                    } else if (hasJwt) {
-                        // Manual mode without per-service credentials: fall back to the global JWT
-                        return new OlogHttpClient(storedJwt);
-                    }
-                } catch (Exception e) {
-                    Logger.getLogger(OlogHttpClient.class.getName()).log(Level.WARNING, "Unable to read credentials from SecureStore", e);
-                }
+                // permissions rejects anonymous reads. Resolved per request, see credentialsFromStore.
+                OlogHttpClient client = new OlogHttpClient(null, null);
+                client.credentialsFromStore = true;
+                return client;
             }
             return new OlogHttpClient(this.username, this.password);
         }
+    }
+
+    /**
+     * @return The Authorization header value for the credentials currently in the {@link SecureStore}:
+     * the JWT in OAuth2 mode, else the Olog username/password, else the global JWT; <code>null</code>
+     * if nothing is stored.
+     */
+    private static String storedAuthorizationHeader() {
+        try {
+            SecureStore secureStore = new SecureStore();
+            OlogAuthenticationScope scope = new OlogAuthenticationScope();
+            String storedJwt = secureStore.get(SecureStore.JWT_TOKEN_TAG);
+            boolean hasJwt = storedJwt != null && !storedJwt.isEmpty();
+            if (hasJwt && SecureStore.AUTH_MODE_OAUTH2.equals(secureStore.getAuthMode(scope))) {
+                return "Bearer " + storedJwt;
+            }
+            ScopedAuthenticationToken token = secureStore.getScopedAuthenticationToken(scope);
+            if (token != null && token.getUsername() != null && token.getPassword() != null) {
+                return "Basic " + Base64.getEncoder().encodeToString((token.getUsername() + ":" + token.getPassword()).getBytes());
+            }
+            if (hasJwt) {
+                // Manual mode without per-service credentials: fall back to the global JWT
+                return "Bearer " + storedJwt;
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Unable to read credentials from SecureStore", e);
+        }
+        return null;
+    }
+
+    /**
+     * @return The Authorization header value to send, or <code>null</code> for an anonymous request.
+     */
+    private String authorizationHeader() {
+        return credentialsFromStore ? storedAuthorizationHeader() : basicAuthenticationHeader;
+    }
+
+    /**
+     * Turns a non-2xx response into an exception with a readable message, instead of letting the
+     * caller try to parse an empty or non-JSON error body.
+     */
+    private static void checkResponse(HttpResponse<String> response, String what) {
+        int status = response.statusCode();
+        if (status < 300) {
+            return;
+        }
+        String message;
+        if (status == 401) {
+            message = "Logbook: not signed in, or the sign-in has expired. Sign in again (Credentials Management) and retry.";
+        } else if (status == 403) {
+            message = "Logbook: no permission to " + what + ".";
+        } else {
+            String body = response.body();
+            message = "Logbook: failed to " + what + ", HTTP " + status
+                    + (body != null && !body.isBlank() ? ": " + body : "");
+        }
+        throw new RuntimeException(message);
     }
 
     public static Builder builder() {
@@ -179,8 +228,9 @@ import static java.lang.Thread.sleep;
      * Adds the Authorization header if this client has credentials; anonymous clients send none.
      */
     private HttpRequest.Builder withAuthorization(HttpRequest.Builder builder) {
-        if (basicAuthenticationHeader != null) {
-            builder.header("Authorization", basicAuthenticationHeader);
+        String authorization = authorizationHeader();
+        if (authorization != null) {
+            builder.header("Authorization", authorization);
         }
         return builder;
     }
@@ -328,11 +378,10 @@ import static java.lang.Thread.sleep;
 
             HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes());
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = withAuthorization(HttpRequest.newBuilder())
                     .uri(URI.create(Preferences.olog_url + "/logs/multipart?" + QueryParamsHelper.mapToQueryParams(queryParams)))
                     .header("Content-Type", httpRequestMultipartBody.getContentType())
                     .header(OLOG_CLIENT_INFO_HEADER, CLIENT_INFO)
-                    .header("Authorization", basicAuthenticationHeader)
                     .method(method, bodyPublisher)
                     //.PUT(HttpRequest.BodyPublishers.ofByteArray(httpRequestMultipartBody.getBytes()))
                     .build();
@@ -417,9 +466,13 @@ import static java.lang.Thread.sleep;
                 .build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            checkResponse(response, "search log entries");
             OlogSearchResult searchResult = OlogObjectMappers.logEntryDeserializer.readValue(response.body(), OlogSearchResult.class);
             return SearchResult.of(new ArrayList<>(searchResult.getLogs()),
                     searchResult.getHitCount());
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "failed to retrieve log entries: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "failed to retrieve log entries", e);
             throw new RuntimeException(e);
@@ -500,10 +553,9 @@ import static java.lang.Thread.sleep;
     @Override
     public void groupLogEntries(List<Long> logEntryIds) throws LogbookException {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = withAuthorization(HttpRequest.newBuilder())
                     .uri(URI.create(Preferences.olog_url + "/logs/group"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", basicAuthenticationHeader)
                     .POST(HttpRequest.BodyPublishers.ofString(OlogObjectMappers.logEntrySerializer.writeValueAsString(logEntryIds)))
                     .build();
 
@@ -732,10 +784,9 @@ import static java.lang.Thread.sleep;
     public LogTemplate saveTemplate(LogTemplate template) throws LogbookException {
 
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest request = withAuthorization(HttpRequest.newBuilder())
                     .uri(URI.create(Preferences.olog_url + "/templates"))
                     .header("Content-Type", CONTENT_TYPE_JSON)
-                    .header("Authorization", basicAuthenticationHeader)
                     .PUT(HttpRequest.BodyPublishers.ofString(OlogObjectMappers.logEntrySerializer.writeValueAsString(template)))
                     .build();
 
