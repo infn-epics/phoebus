@@ -35,9 +35,9 @@ public class Launcher {
 
     public static void main(final String[] original_args) throws Exception {
         // First Handle arguments, potentially not even starting the UI
-        // settings and logging will define the phoebus.install value if not exist 
+        // settings and logging will define the phoebus.install value if not exist
         final List<String> args = new ArrayList<>(List.of(original_args));
-        
+
         //Handle logging first
         int indexOf = args.indexOf(LOGGING_OPTION);
         String loggingFilePath = null;
@@ -61,22 +61,22 @@ public class Launcher {
                 errorLoggingOption = "User logging file " + loggingFilePath + " not found";
             }
         }
-        
+
         //If no logging found use the default one
         if(loggingStream == null) {
             loggingFilePath =  Launcher.class.getResource(DEFAULT_LOGGING_FILE).getFile();
             loggingStream = Launcher.class.getResourceAsStream(DEFAULT_LOGGING_FILE);
         }
-            
+
         //Load logging configuration
         LogManager.getLogManager().readConfiguration(loggingStream);
         final Logger logger = Logger.getLogger(Launcher.class.getPackageName());
         logger.log(Level.CONFIG, "Loading logging configuration from " + loggingFilePath);
-        
+
         if(errorLoggingOption != null) {
             logger.log(Level.WARNING, errorLoggingOption);
         }
-        
+
         boolean showLaunchError = false;
 
         // Can't change default charset, but warn if it's not UTF-8.
@@ -93,7 +93,7 @@ public class Launcher {
             logger.severe("Default charset is " + cs.displayName() + " instead of UTF-8.");
             logger.severe("Add    -D\"file.encoding=UTF-8\"    to java command line or JAVA_TOOL_OPTIONS");
         }
-        
+
         //Handle user settings.ini in order to get Locations informations
         //as user home directory and phoebus folder name
         //Install path will be set on call of install()
@@ -104,7 +104,7 @@ public class Launcher {
             String settingsFilePath = args.get(indexOf + 1);
             site_settings = new File(settingsFilePath);
         }
-        
+
         if(site_settings == null || !site_settings.exists()) {
             // Check for site-specific settings.ini bundled into distribution
             // before potentially adding command-line settings.
@@ -112,7 +112,7 @@ public class Launcher {
             logger.log(Level.WARNING, "Settings file " + settingsError);
             site_settings = new File(Locations.install(), "settings.ini");
         }
-        
+
         if(site_settings != null && site_settings.exists()) {
             logger.info("Loading settings from " + site_settings.getAbsolutePath());
             FileInputStream fileInputStream = new FileInputStream(site_settings);
@@ -121,7 +121,7 @@ public class Launcher {
             else
                 PropertyPreferenceLoader.load(fileInputStream);
         }
-    
+
         // Handle arguments, potentially not even starting the UI
         final Iterator<String> iter = args.iterator();
         int port = -1;
