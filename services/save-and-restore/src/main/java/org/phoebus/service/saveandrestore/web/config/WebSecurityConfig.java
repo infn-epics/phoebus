@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2026 European Spallation Source ERIC.
  *
- */package org.phoebus.service.saveandrestore.web.config;
+ */
+
+package org.phoebus.service.saveandrestore.web.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -58,6 +60,9 @@ public class WebSecurityConfig {
     @Value("${role.admin:sar-admin}")
     private String roleAdmin;
 
+    @Value("${role.server.restore:sar-server-restore}")
+    private String roleServerRestore;
+
     /**
      * OAuth2/JWT authentication support.
      */
@@ -85,6 +90,14 @@ public class WebSecurityConfig {
         return roleAdmin.toUpperCase();
     }
 
+    /**
+     *
+     * @return name of role authorizing server side restore
+     */
+    @Bean
+    public String roleServerRestore(){
+        return roleServerRestore;
+    }
 
     /**
      *
@@ -124,7 +137,7 @@ public class WebSecurityConfig {
         return web -> {
             // The below lists exceptions for authentication.
             web.ignoring().requestMatchers(HttpMethod.GET, "/**");
-            web.ignoring().requestMatchers(HttpMethod.POST, "/**/login*");
+            web.ignoring().requestMatchers(HttpMethod.POST, "/**/login");
         };
     }
 

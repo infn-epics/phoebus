@@ -53,12 +53,6 @@
 			<version>${vtype.version}</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.epics</groupId>
-			<artifactId>vtype-gson</artifactId>
-			<version>${vtype.version}</version>
-		</dependency>
-
 		<!-- https://mvnrepository.com/artifact/tools.jackson.core/jackson-core -->
 		<dependency>
 			<groupId>tools.jackson.core</groupId>
