@@ -56,7 +56,6 @@ import java.security.KeyStore;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -85,6 +84,10 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
 
     @Value("${oauth2.claimsName:name}")
     private String claimsName;
+
+    /** Role required by the server side restore endpoints, see AuthorizationHelper */
+    @Value("${role.server.restore:sar-server-restore}")
+    private String roleServerRestore;
 
     private RestTemplate restTemplate;
 
@@ -195,9 +198,12 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
 
             logger.log(Level.INFO, "JWT authentication successful for user: {0}", username);
 
-            // Assign the user the ROLE_ADMIN role so they can write (sar-admin > sar-user in hierarchy)
-            List<SimpleGrantedAuthority> authorities = Collections.singletonList(
-                    new SimpleGrantedAuthority("ROLE_SAR-ADMIN")
+            // Assign the user the ROLE_ADMIN role so they can write (sar-admin > sar-user in hierarchy),
+            // and the server side restore role, which the role hierarchy does not imply and
+            // authorization.permitall does not bypass.
+            List<SimpleGrantedAuthority> authorities = List.of(
+                    new SimpleGrantedAuthority("ROLE_SAR-ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_" + roleServerRestore)
             );
 
             return new UsernamePasswordAuthenticationToken(username, jwtToken, authorities);
